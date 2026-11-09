@@ -352,7 +352,12 @@
   .doc .l2 { margin-left: 2.6em; }
   .doc .l3 { margin-left: 4em; }
   .doc h2 { scroll-margin-top: 80px; margin-top: 26px; }
-  .doc .twrap { margin: 10px 0; }
+  .doc .twrap { margin: 10px 0; overflow-x: visible; }
+  /* constitution tables (league calendar, payouts): wrap text, match doc type, fit phones */
+  .doc table { width: 100%; max-width: 860px; min-width: 0; }
+  .doc th, .doc td { white-space: normal; vertical-align: top; font-size: inherit; line-height: 1.5; }
+  .doc table { font-size: 14px; }
+  @media (max-width: 760px) { .doc table { font-size: 13px; } }
   .doc table { min-width: 0; }
   .squadgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s3); }
   .keepgrid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: var(--s3); align-items: start; }
@@ -669,8 +674,10 @@
     <div class="budgetDuo" id="budgetDuoPage"></div>
     <div id="budHist" style="display:none">
       <div class="controls">
-        <label for="selBHYear">Year</label><select id="selBHYear"></select>
+        <label for="selBHOwner">Owner</label><select id="selBHOwner"></select>
+        <label for="selBHYear" style="margin-left:8px">Year</label><select id="selBHYear"></select>
       </div>
+      <div class="card" id="bhStats" style="display:none"></div>
       <div class="recgrid" id="budRecs"></div>
       <div class="twrap"><table id="budHistTable"></table></div>
       <div class="note">All draft-dollar history. Click a column to sort.</div></div>
@@ -852,35 +859,11 @@
     <h1>Devy draft</h1>
     <div class="pills" id="ddPills"></div>
     <div class="note" id="devyDMsg"></div>
+    <div class="note" id="devyMsg"></div>
     <div class="dsub" id="dvsub-picks">
       <div class="budgetDuo" id="dvPicksDuo"></div>
       <div class="note" id="dvPicksNote"></div>
     </div>
-    <div class="dsub" id="dvsub-history">
-      <div class="controls">
-        <label for="selDvYear">Devy draft</label><select id="selDvYear"></select>
-        <label for="selDvOwner">Owner</label><select id="selDvOwner"></select>
-        <label for="selDvPos">Position</label><select id="selDvPos"></select>
-        <label for="selDvStatus">Status</label><select id="selDvStatus"></select>
-        <label for="inpDvPlayer">Player</label><input id="inpDvPlayer" type="text" placeholder="Search player">
-        <label for="selDvPick">Pick #</label><select id="selDvPick"><option>All picks</option></select>
-      </div>
-      <div class="twrap"><table id="dvHistTable"></table></div>
-      <div class="note" id="dvHistNote"></div>
-    </div>
-    <div class="dsub" id="dvsub-records">
-      <h2>Devy success by owner</h2>
-      <div class="twrap"><table id="dvRecOwnerTable"></table></div>
-      <h2>How devy picks fared in the NFL draft</h2>
-      <div class="twrap"><table id="dvRecRoundTable"></table></div>
-      <div class="note" id="dvRecNote"></div>
-    </div>
-  </div>
-
-  <div class="view" id="v-devy">
-    <h1>Current devy players</h1>
-    <div class="note" id="devyMsg"></div>
-
     <div class="dsub" id="dvsub-roster">
       <div class="controls">
         <label for="selDvRosOwner">Owner</label><select id="selDvRosOwner"></select>
@@ -892,12 +875,33 @@
       <div id="dvRosterCards"></div>
       <div class="note" id="dvRosterNote"></div>
     </div>
-
-    
-
-    
-
-    
+    <div class="dsub" id="dvsub-history">
+      <div class="controls">
+        <label for="selDvYear">Devy draft</label><select id="selDvYear"></select>
+        <label for="selDvOwner">Owner</label><select id="selDvOwner"></select>
+        <label for="selDvPos">Position</label><select id="selDvPos"></select>
+        <label for="selDvSchool">School</label><select id="selDvSchool"><option>All schools</option></select>
+        <label for="selDvStatus">Status</label><select id="selDvStatus"></select>
+        <label for="inpDvPlayer">Player</label><input id="inpDvPlayer" type="text" placeholder="Search player">
+        <label for="selDvPick">Pick #</label><select id="selDvPick"><option>All picks</option></select>
+      </div>
+      <div class="twrap"><table id="dvHistTable"></table></div>
+      <div class="note" id="dvHistNote"></div>
+    </div>
+    <div class="dsub" id="dvsub-records">
+      <h2>Best devy picks</h2>
+      <div class="twrap"><table id="dvRecBestTable"></table></div>
+      <div class="note">Ranked by what each pick produced while retained: seasons held (devy, taxi, keeper or franchise) before going back into the auction, and top-12 finishes at their position in those seasons.</div>
+      <h2>Picks by school</h2>
+      <div class="twrap"><table id="dvRecSchoolTable"></table></div>
+      <h2>Picks by position</h2>
+      <div class="twrap"><table id="dvRecPosTable"></table></div>
+      <h2>Devy success by owner</h2>
+      <div class="twrap"><table id="dvRecOwnerTable"></table></div>
+      <h2>How devy picks fared in the NFL draft</h2>
+      <div class="twrap"><table id="dvRecRoundTable"></table></div>
+      <div class="note" id="dvRecNote"></div>
+    </div>
   </div>
 
   <div class="view" id="v-taxisquads">
@@ -1019,12 +1023,12 @@ var DATA = null, AGGS = {}, SEC = null, SECLOADING = false, CONST = null, CONSTL
 var DI = null, DDI = null, KI = null, TDI = null;
 var lastDraft = null, lastKeep = null, POSRANK = {};
 var PAGES = [['home','Home'],['current','Current season standings'],['seasons','Seasons'],['h2h','Head to head'],['records','Records'],['topplayers','Top players'],['lineups','Historic starting lineups and scoring by positions'],
-             ['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper options'],['devydraft','Devy draft'],['devy','Current devy players'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"]];
+             ['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper options'],['devydraft','Devy draft'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"]];
 var RULES_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdtN5Oopj3cklw4TIE_nhuLOmkv2KLOzf6MyP__7paD9rSoLQ/viewform';
 // Grouped navigation: four top-level entries instead of thirteen.
 var NAVGROUPS = [
   { page: 'home', label: 'Home' },
-  { label: 'This season', items: ['thisweek', 'current', 'budgets', 'keepers', 'taxisquads', 'devydraft', 'devy', 'rules'] },
+  { label: 'This season', items: ['thisweek', 'current', 'budgets', 'keepers', 'taxisquads', 'devydraft', 'rules'] },
   { label: 'League history', items: ['seasons', 'records', 'h2h', 'topplayers', 'lineups', 'draft', 'trophy'] },
   { page: 'constitution', label: 'Constitution' }
 ];
@@ -1206,6 +1210,7 @@ function onData() {
 
 var CURPAGE = pageFromPath();
 function show(page) {
+  if (page === 'devy') { page = 'devydraft'; dvSub = 'roster'; }
   CURPAGE = page;
   routePush(page);
   document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('on'); });
@@ -1220,14 +1225,13 @@ function show(page) {
   });
   if (page === 'records') ensureAggs();
   if (page === 'thisweek') ensureThisWeek();
-  if (page === 'draft' || page === 'keepers' || page === 'devy' || page === 'devydraft') {
-    if (!SEC) el(page === 'draft' ? 'draftMsg' : page === 'devy' ? 'devyMsg' : page === 'devydraft' ? 'devyDMsg' : 'keepMsg').textContent = 'Loading draft & keeper data\u2026';
+  if (page === 'draft' || page === 'keepers' || page === 'devydraft') {
+    if (!SEC) el(page === 'draft' ? 'draftMsg' : page === 'devydraft' ? 'devyDMsg' : 'keepMsg').textContent = 'Loading draft & keeper data\u2026';
     ensureSecondary();
   }
   if (page === 'keepers') ensureKeepDD();
-  if (page === 'devy') { dvSub = 'roster'; showDvSub(); if (SEC) renderDevy(); }
   if (page === 'devydraft') {
-    if (['picks', 'history', 'records'].indexOf(dvSub) === -1) dvSub = 'picks';
+    if (['picks', 'roster', 'history', 'records'].indexOf(dvSub) === -1) dvSub = 'picks';
     initDvTabs(); showDvSub(); if (SEC) renderDevy();
   }
   if (page === 'constitution') {
@@ -3145,7 +3149,8 @@ function ensurePosscData(cb) {
 // ---------- current season ----------
 var CUR = null, CURLOADING = false;
 function ensureCurrent() {
-  if (CUR || CURLOADING) return;
+  if (CUR) { el('curMsg').textContent = ''; renderCurrent(); return; }
+  if (CURLOADING) return;
   CURLOADING = true;
   google.script.run.withSuccessHandler(function (d) {
     CURLOADING = false;
@@ -3299,6 +3304,46 @@ function showCurSub() {
     b.classList.toggle('on', b.dataset.sub === curSub);
   });
 }
+// deterministic clinch / elimination math for the current season (14-game regular season).
+// A top-5 overall record always locks an auto bid in our format; Premier top-2 and the
+// Second title are shorter doors. Ties count against, so everything runs a shade conservative.
+function curPlayoffMath_(c) {
+  var owners = c.owners;
+  var remain = {}, maxWv = {};
+  owners.forEach(function (o) {
+    remain[o] = Math.max(0, 14 - c.st[o].w - c.st[o].l);
+    maxWv[o] = c.st[o].w + remain[o];
+  });
+  function rivals(o) { return (c.divRanks[c.div[o]] || []).filter(function (x) { return x !== o; }); }
+  function magic(o) {
+    var oth = owners.filter(function (x) { return x !== o; }).map(function (x) { return maxWv[x]; })
+      .sort(function (a, b) { return b - a; });
+    var m = (oth[4] != null ? oth[4] : -1) + 1 - c.st[o].w;
+    var d = c.div[o], rv = rivals(o);
+    if (d === 'Premier' && rv.length >= 2) {
+      var rm = rv.map(function (x) { return maxWv[x]; }).sort(function (a, b) { return b - a; });
+      m = Math.min(m, rm[1] + 1 - c.st[o].w);
+    } else if (d === 'Second' && rv.length) {
+      m = Math.min(m, Math.max.apply(null, rv.map(function (x) { return maxWv[x]; })) + 1 - c.st[o].w);
+    }
+    if (m <= 0) return 0;
+    return m > remain[o] ? null : m;
+  }
+  function elim(o) {
+    var rv = rivals(o), mw = maxWv[o], d = c.div[o];
+    var aheadDiv = rv.filter(function (x) { return c.st[x].w > mw; }).length;
+    var aheadAll = owners.filter(function (x) { return x !== o && c.st[x].w > mw; }).length;
+    return {
+      divTitleDead: aheadDiv >= 1,
+      autoDead: (d === 'Premier' ? aheadDiv >= 2 : d === 'Second' ? aheadDiv >= 1 : true) && aheadAll >= 5
+    };
+  }
+  var bench = 0, sixOwner = null;
+  for (var so in c.seeds) if (c.seeds[so] === 6) sixOwner = so;
+  if (sixOwner) bench = c.st[sixOwner].pf;
+  else owners.forEach(function (o) { if ((c.auto || []).indexOf(o) === -1) bench = Math.max(bench, c.st[o].pf); });
+  return { magic: magic, elim: elim, remain: remain, bench: bench };
+}
 function renderCurrent() {
   if (!CUR) return;
   initCurTabs();
@@ -3310,6 +3355,12 @@ function renderCurrent() {
   }
   var prev = c.played > 1 ? curCompute(c.played - 1) : null;
   var html = '';
+  var PM = curPlayoffMath_(c);
+  var showMagic = c.played >= 8;
+  function magCell(o) {
+    var m = PM.magic(o);
+    return m === 0 ? '<span class="chip div">Clinched \u2713</span>' : m == null ? '\u2014' : String(m);
+  }
 
   // division standings
   ['Premier', 'Second', 'Third'].concat(Object.keys(c.divRanks).filter(function (d) {
@@ -3320,7 +3371,8 @@ function renderCurrent() {
     var leaderW = c.st[list[0]].w, leaderL = c.st[list[0]].l;
     html += '<h2>' + d + ' Division</h2><div class="twrap"><table class="fit"><thead><tr>' +
       '<th class="num">RK</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num">%</th>' +
-      '<th class="num">GB</th><th>Streak</th><th>Last 10</th><th class="num">Avg PF</th></tr></thead><tbody>';
+      '<th class="num">GB</th><th>Streak</th><th>Last 10</th><th class="num">Avg PF</th>' +
+      (showMagic ? '<th class="num">Magic #</th>' : '') + '</tr></thead><tbody>';
     var divPts = 0, divGames = 0;
     list.forEach(function (o, i) {
       var b = curRowBits(o, c);
@@ -3330,9 +3382,11 @@ function renderCurrent() {
         (c.seeds[o] ? ' <span class="chip div">Seed ' + c.seeds[o] + '</span>' : '') + '</td>' +
         '<td class="num">' + b.w + '</td><td class="num">' + b.l + '</td><td class="num">' + b.pct + '</td>' +
         '<td class="num">' + gb + '</td><td>' + b.streak + '</td><td>' + b.last10 + '</td>' +
-        '<td class="num">' + b.avgPF + '</td></tr>';
+        '<td class="num">' + b.avgPF + '</td>' +
+        (showMagic ? '<td class="num">' + magCell(o) + '</td>' : '') + '</tr>';
     });
     html += '</tbody></table></div>';
+    if (showMagic && d === 'Third') html += '<div class="note">Magic # = wins that lock a playoff auto bid no matter what anyone else does (division or wild-card path, whichever is shorter).</div>';
     if (divGames) html += '<div class="note">Division average per game: ' + n1(divPts / divGames) + '</div>';
   });
 
@@ -3383,6 +3437,29 @@ function renderCurrent() {
           '<td class="num">' + b.w + '</td><td class="num">' + b.l + '</td></tr>';
       });
       html += '</tbody></table></div>';
+    }
+    // clinches & eliminations (mathematical, shown once the season is deep enough)
+    if (c.played >= 6) {
+      var elLines = [];
+      c.owners.forEach(function (o) {
+        var st4 = PM.elim(o);
+        if (!st4.divTitleDead && !st4.autoDead) return;
+        var deficit = PM.bench - c.st[o].pf;
+        var beyond = st4.autoDead && (PM.remain[o] === 0 ? deficit > 0 : deficit > 40 * PM.remain[o]);
+        if (beyond) {
+          elLines.push('<li>\ud83e\udea6 <b>' + o + '</b> is out of it, within reason \u2014 no auto-bid path left, and the points-for seed is ' +
+            n1(deficit) + ' back with ' + PM.remain[o] + ' week' + (PM.remain[o] === 1 ? '' : 's') + ' to play.</li>');
+        } else if (st4.autoDead) {
+          elLines.push('<li>\ud83d\udeab <b>' + o + '</b> can\u2019t reach an auto bid any more (division or wild card) \u2014 only the points-for 6 seed is left' +
+            (deficit > 0 ? ' (' + n1(deficit) + ' PF back)' : '') + '.</li>');
+        } else {
+          elLines.push('<li>\u274c <b>' + o + '</b> is eliminated from the ' + (c.div[o] || '') + ' division title.</li>');
+        }
+      });
+      if (elLines.length) {
+        html += '<h2 style="font-size:15px">Eliminations</h2><ul>' + elLines.join('') + '</ul>' +
+          '<div class="note">Eliminations are mathematical, with ties counted against (a shade conservative). Nobody is ever fully dead \u2014 the 6 seed goes to points for \u2014 but \u201cout of it, within reason\u201d means trailing that race by more than 40 points per remaining week.</div>';
+      }
     }
   } else {
     html += '<div class="note">Seeding appears once the CurrentDivisions tab lists Premier and Second division teams.</div>';
@@ -3705,16 +3782,50 @@ function renderBudHist() {
   var bi = ix(BUDHIST);
   if (!renderBudHist._init) {
     renderBudHist._init = 1;
-    var ys = {};
-    BUDHIST.rows.forEach(function (r) { var y = Number(r[bi.Year]); if (y) ys[y] = 1; });
+    var ys = {}, os = {};
+    BUDHIST.rows.forEach(function (r) {
+      var y = Number(r[bi.Year]); if (y) ys[y] = 1;
+      var o = String(r[bi.Owner] == null ? '' : r[bi.Owner]).trim(); if (o) os[o] = 1;
+    });
+    el('selBHOwner').innerHTML = '<option>All owners</option>' + Object.keys(os).sort()
+      .map(function (o) { return '<option>' + o + '</option>'; }).join('');
     el('selBHYear').innerHTML = '<option>All years</option>' + Object.keys(ys).map(Number)
       .sort(function (a, b) { return b - a; })
       .map(function (y) { return '<option>' + y + '</option>'; }).join('');
+    el('selBHOwner').onchange = renderBudHist;
     el('selBHYear').onchange = renderBudHist;
   }
   el('budRecs').innerHTML = budRecords(bi);
-  var fo = el('selBOwner').value;
+  var fo = (el('selBHOwner') && el('selBHOwner').value) || 'All owners';
   var fy = el('selBHYear').value;
+  // owner career stats card (all years, whatever the year filter says)
+  var st = el('bhStats');
+  if (fo === 'All owners') { st.style.display = 'none'; }
+  else {
+    var pts = [];
+    BUDHIST.rows.forEach(function (r) {
+      if (r[bi.Owner] !== fo) return;
+      var y = Number(r[bi.Year]), v = Number(r[bi.DollarsBeforeKeepers]);
+      if (y && !isNaN(v) && String(r[bi.DollarsBeforeKeepers]) !== '') pts.push({ y: y, v: v });
+    });
+    if (pts.length) {
+      var vs = pts.map(function (p) { return p.v; }).slice().sort(function (a, b) { return a - b; });
+      var avg = vs.reduce(function (s, x) { return s + x; }, 0) / vs.length;
+      var med = vs.length % 2 ? vs[(vs.length - 1) / 2] : (vs[vs.length / 2 - 1] + vs[vs.length / 2]) / 2;
+      var hi = pts.reduce(function (a, p) { return p.v > a.v ? p : a; });
+      var lo = pts.reduce(function (a, p) { return p.v < a.v ? p : a; });
+      function chip(lbl, val) {
+        return '<span style="display:inline-block;margin:2px 14px 2px 0"><span style="color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px">' + lbl +
+          '</span><br><b style="font-size:16px">' + val + '</b></span>';
+      }
+      st.innerHTML = '<div style="font-weight:700;margin-bottom:4px">' + fo + '’s draft dollars · ' +
+        pts.length + ' seasons</div>' +
+        chip('Average', '$' + n1(avg)) + chip('Median', '$' + n1(med)) +
+        chip('High', '$' + n1(hi.v) + ' <span style="font-weight:400;color:var(--muted)">(' + hi.y + ')</span>') +
+        chip('Low', '$' + n1(lo.v) + ' <span style="font-weight:400;color:var(--muted)">(' + lo.y + ')</span>');
+      st.style.display = 'block';
+    } else st.style.display = 'none';
+  }
   var rows = BUDHIST.rows.filter(function (r) {
     return String(r[bi.Owner] == null ? '' : r[bi.Owner]).trim() !== '' &&
       (fo === 'All owners' || r[bi.Owner] === fo) &&
@@ -4288,27 +4399,33 @@ var POSSC = null, POSSCLOADING = false, psChartObj = null;
 var PSSORT = { col: 'Overall', dir: 1 };
 var PSYSORT = { col: null, dir: 1 };
 var PSPOSCOLS = ['QB', 'RB', 'WR', 'TE', 'D/ST', 'K'];
+function psWireControls_() {
+  // populate + wire the dropdowns exactly once, however POSSC got loaded
+  if (psWireControls_.done || !POSSC) return;
+  psWireControls_.done = 1;
+  var poss = {};
+  POSSC.pts.forEach(function (r) { poss[r[2]] = 1; });
+  var ordered = PSPOSCOLS.filter(function (p) { return poss[p]; })
+    .concat(Object.keys(poss).filter(function (p) { return PSPOSCOLS.indexOf(p) === -1; }).sort());
+  el('selPSPos').innerHTML = ordered.map(function (p) { return '<option>' + p + '</option>'; }).join('');
+  var yrs = {};
+  POSSC.pts.forEach(function (r) { yrs[r[1]] = 1; });
+  el('selPSYear').innerHTML = '<option>All years</option>' +
+    Object.keys(yrs).map(Number).sort(function (a, b) { return b - a; })
+      .map(function (y) { return '<option>' + y + '</option>'; }).join('');
+  el('selPSView').onchange = renderPossc;
+  el('selPSPos').onchange = renderPossc;
+  el('selPSYear').onchange = renderPossc;
+}
 function ensurePossc() {
-  if (POSSC) { renderPossc(); return; }
+  if (POSSC) { psWireControls_(); renderPossc(); return; }
   if (POSSCLOADING) return;
   POSSCLOADING = true;
   el('psMsg').textContent = 'Crunching positional scoring\u2026';
   google.script.run.withSuccessHandler(function (d) {
     POSSCLOADING = false;
     POSSC = d; el('psMsg').textContent = '';
-    var poss = {};
-    d.pts.forEach(function (r) { poss[r[2]] = 1; });
-    var ordered = PSPOSCOLS.filter(function (p) { return poss[p]; })
-      .concat(Object.keys(poss).filter(function (p) { return PSPOSCOLS.indexOf(p) === -1; }).sort());
-    el('selPSPos').innerHTML = ordered.map(function (p) { return '<option>' + p + '</option>'; }).join('');
-    var yrs = {};
-    d.pts.forEach(function (r) { yrs[r[1]] = 1; });
-    el('selPSYear').innerHTML = '<option>All years</option>' +
-      Object.keys(yrs).map(Number).sort(function (a, b) { return b - a; })
-        .map(function (y) { return '<option>' + y + '</option>'; }).join('');
-    el('selPSView').onchange = renderPossc;
-    el('selPSPos').onchange = renderPossc;
-    el('selPSYear').onchange = renderPossc;
+    psWireControls_();
     renderPossc();
   }).withFailureHandler(function (e) {
     POSSCLOADING = false;
@@ -4547,7 +4664,7 @@ function dvHeld(v) {
   var low = String(v == null ? '' : v).toLowerCase();
   return low.indexOf('college') > -1 || low === 'declared';
 }
-var DDTABS = [['picks', 'Future picks'], ['history', 'Draft history'], ['records', 'Records']];
+var DDTABS = [['picks', 'Upcoming picks'], ['roster', 'In college'], ['history', 'Pick history'], ['records', 'Records']];
 function initDvTabs() {
   if (el('ddPills').innerHTML) return;
   el('ddPills').innerHTML = DDTABS.map(function (t) {
@@ -4571,19 +4688,21 @@ function showDvSub() {
 function fillDevySelects() {
   var i = devyIdx_();
   if (!i) return;
-  var yrs = {}, poss = {};
+  var yrs = {}, poss = {}, schs = {};
   SEC.devy.rows.forEach(function (r) {
     var y = Number(r[i.year]); if (y) yrs[y] = 1;
     var p = String(r[i.pos] == null ? '' : r[i.pos]).trim(); if (p) poss[p] = 1;
+    var sc = String(r[i.school] == null ? '' : r[i.school]).trim(); if (sc) schs[sc] = 1;
   });
   var yList = Object.keys(yrs).map(Number).sort(function (a, b) { return b - a; });
   el('selDvYear').innerHTML = '<option>All years</option>' + yList.map(function (y) { return '<option>' + y + '</option>'; }).join('');
   el('selDvOwner').innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
   el('selDvPos').innerHTML = '<option>All positions</option>' + Object.keys(poss).sort().map(function (p) { return '<option>' + p + '</option>'; }).join('');
+  el('selDvSchool').innerHTML = '<option>All schools</option>' + Object.keys(schs).sort().map(function (sc) { return '<option>' + sc + '</option>'; }).join('');
   el('selDvStatus').innerHTML = '<option value="all">All statuses</option>' +
     ['Kept', 'Not kept', 'Still in college', 'Declared', 'Undrafted'].map(function (s) { return '<option>' + s + '</option>'; }).join('');
   el('selDvRosOwner').innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
-  ['selDvYear', 'selDvOwner', 'selDvPos', 'selDvStatus', 'selDvRosOwner'].forEach(function (id) {
+  ['selDvYear', 'selDvOwner', 'selDvPos', 'selDvSchool', 'selDvStatus', 'selDvRosOwner'].forEach(function (id) {
     el(id).onchange = renderDevy;
   });
 }
@@ -4675,9 +4794,11 @@ function renderDevy() {
     }
     var hq = (el('inpDvPlayer').value || '').trim().toLowerCase();
     var hpick = pickSel.value;
+    var fsch = (el('selDvSchool') && el('selDvSchool').value) || 'All schools';
     var list = rows.filter(function (r) {
       if (hq && String(r[i.player]).toLowerCase().indexOf(hq) === -1) return false;
       if (hpick !== 'All picks' && String(r[i.pick]) !== String(hpick)) return false;
+      if (fsch !== 'All schools' && String(r[i.school] == null ? '' : r[i.school]).trim() !== fsch) return false;
       var st = String(r[i.status] == null ? '' : r[i.status]).trim().toLowerCase();
       return (fy === 'All years' || Number(r[i.year]) === Number(fy)) &&
         (fo2 === 'All owners' || String(r[i.orig]).trim() === fo2 || String(r[i.cur]).trim() === fo2) &&
@@ -4735,9 +4856,84 @@ function renderDevy() {
     el('dvPicksDuo').innerHTML = html2 || '<div class="note">No future picks listed on the DevyPlayers tab.</div>';
     el('dvPicksNote').textContent = 'Upcoming devy draft picks and who holds them now. A muted original owner means the pick was never traded.';
   } else {
-    // records: by owner, and by NFL draft round
-    // Attribute picks to the CURRENT owner: they held the pick at the draft
-    // and made the keep-or-not decision, even if someone else originally owned it.
+    // records: tie every devy pick into the auction DraftResults history.
+    // A pick's "retention run" = its seasons as Devy / Taxi / Keeper / Franchised
+    // from NFL arrival until the player first goes through the auction again.
+    var dIdx = ix(SEC.draft);
+    function dvNrm(s) {
+      return String(s == null ? '' : s).toLowerCase()
+        .replace(/[.’']/g, '')
+        .replace(/\s+(jr|sr|ii|iii|iv|v)\.?$/i, '')
+        .replace(/\s+/g, ' ').trim();
+    }
+    if (!renderDevy._hist) {
+      var h2 = {};
+      SEC.draft.rows.forEach(function (r) {
+        var nm = dvNrm(r[dIdx.Player]);
+        if (!nm) return;
+        (h2[nm] = h2[nm] || []).push({
+          y: Number(r[dIdx.Year]),
+          cat: String(r[dIdx.Category] == null ? '' : r[dIdx.Category]).trim().toLowerCase(),
+          rank: Number(r[dIdx.SeasonPtsRankPosition])
+        });
+      });
+      Object.keys(h2).forEach(function (k) { h2[k].sort(function (a, b) { return a.y - b.y; }); });
+      renderDevy._hist = h2;
+    }
+    var RETCAT = { devy: 1, taxi: 1, keeper: 1, franchised: 1 };
+    var careerCache = {};
+    function careerOf(name) {
+      var key = dvNrm(name);
+      if (careerCache[key]) return careerCache[key];
+      var rowsH = renderDevy._hist[key] || [];
+      var yrs = 0, tops = 0;
+      for (var q = 0; q < rowsH.length; q++) {
+        if (!RETCAT[rowsH[q].cat]) break;   // first auction appearance ends the run
+        yrs++;
+        if (rowsH[q].rank >= 1 && rowsH[q].rank <= 12) tops++;
+      }
+      return (careerCache[key] = { years: yrs, tops: tops, found: rowsH.length > 0 });
+    }
+
+    // best devy picks ever
+    var best = rows.map(function (r) { return { r: r, c: careerOf(r[i.player]) }; })
+      .filter(function (x) { return x.c.years > 0 || String(x.r[i.status]).toLowerCase() === 'kept'; });
+    best.sort(function (a, b) {
+      return b.c.tops - a.c.tops || b.c.years - a.c.years ||
+        Number(a.r[i.year] || 0) - Number(b.r[i.year] || 0);
+    });
+    sortableTable('dvRecBestTable',
+      ['RK', 'Player', 'School', 'Pos', 'Devy draft', 'Owner', 'Seasons retained', 'Top-12 seasons'],
+      best.slice(0, 30).map(function (x, n2) {
+        var r = x.r;
+        return [n2 + 1, '<b>' + r[i.player] + '</b>', r[i.school] || '', r[i.pos] || '',
+          r[i.year] || '', String(r[i.cur]).trim(), x.c.years, x.c.tops];
+      }), [0, 4, 6, 7], [], 7, 1);
+
+    // aggregates by school and by position
+    function dvAgg(keyFn, label, tableId) {
+      var m2 = {};
+      rows.forEach(function (r) {
+        var k = String(keyFn(r) == null ? '' : keyFn(r)).trim() || '—';
+        var e2 = m2[k] = m2[k] || { n: 0, kept: 0, yrs: 0, tops: 0 };
+        e2.n++;
+        if (String(r[i.status]).toLowerCase() === 'kept') e2.kept++;
+        var c2 = careerOf(r[i.player]);
+        e2.yrs += c2.years; e2.tops += c2.tops;
+      });
+      sortableTable(tableId,
+        [label, 'Picks', 'Kept', 'Keep rate', 'Seasons retained', 'Top-12 seasons'],
+        Object.keys(m2).sort(function (a, b) { return m2[b].n - m2[a].n || (a < b ? -1 : 1); })
+          .map(function (k) {
+            var e3 = m2[k];
+            return ['<b>' + k + '</b>', e3.n, e3.kept,
+              e3.n ? Math.round(e3.kept / e3.n * 1000) / 10 + '%' : '', e3.yrs, e3.tops];
+          }), [1, 2, 3, 4, 5], [], 1, 1);
+    }
+    dvAgg(function (r) { return r[i.school]; }, 'School', 'dvRecSchoolTable');
+    dvAgg(function (r) { return r[i.pos]; }, 'Position', 'dvRecPosTable');
+
+    // by owner (current owner made the keep-or-not call)
     var per = {};
     rows.forEach(function (r) {
       var o = String(r[i.cur]).trim();
