@@ -1000,7 +1000,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2105';
+var RTB_BUILD = '1109.2110';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1957,8 +1957,13 @@ function ensureAggs() {
     });
 }
 function renderRecords() {
+  if (!renderRecords._qs) {
+    renderRecords._qs = 1;
+    setSelIf_('selRec', routeGetQS('rec'));
+  }
   el('selRec').onchange = function () { ensureAggs(); renderRecords(); };
   var v = el('selRec').value, note = '';
+  if (CURPAGE === 'records') routeSetQS({ rec: v === 'career' ? '' : v });
   var filterable = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'allplayyear', 'lossseason'].indexOf(v) > -1;
   el('recFilters').style.display = filterable ? 'flex' : 'none';
   var fy = el('selRYear').value, fo = el('selROwner').value, fs = el('selRSet').value;
@@ -3663,12 +3668,21 @@ var curSub = 'standings';
 var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['divvdiv', 'Division vs division'],
                ['pf', 'Points for'], ['pa', 'Points against'], ['honors', 'Weekly honors']];
 function initCurTabs() {
+  // deep link: /current-season?tab=playoffs
+  if (!initCurTabs._qs) {
+    initCurTabs._qs = 1;
+    var tb = routeGetQS('tab');
+    if (tb && CURTABS.some(function (t) { return t[0] === tb; })) curSub = tb;
+  }
   if (el('curPills').innerHTML) return;
   el('curPills').innerHTML = CURTABS.map(function (t) {
     return '<button class="pill" data-sub="' + t[0] + '">' + t[1] + '</button>';
   }).join('');
   el('curPills').querySelectorAll('button').forEach(function (b) {
-    b.onclick = function () { curSub = b.dataset.sub; showCurSub(); };
+    b.onclick = function () {
+      curSub = b.dataset.sub; showCurSub();
+      if (CURPAGE === 'current') routeSetQS({ tab: curSub === 'standings' ? '' : curSub });
+    };
   });
   showCurSub();
 }
@@ -3809,7 +3823,7 @@ function renderCurrent() {
       '<th>Seed</th><th>Team</th><th>Div</th><th class="num">W</th><th class="num">L</th><th class="num">Avg PF</th></tr></thead><tbody>';
     c.auto.forEach(function (o) {
       var b = curRowBits(o, c);
-      html += '<tr><td><b>' + c.seeds[o] + (c.seeds[o] <= 2 ? ' (BYE)' : '') + '</b></td><td><b>' + o + '</b></td>' +
+      html += '<tr class="qrow"><td><b>' + c.seeds[o] + (c.seeds[o] <= 2 ? ' (BYE)' : '') + '</b></td><td><b>' + o + '</b></td>' +
         '<td>' + c.div[o] + '</td><td class="num">' + b.w + '</td><td class="num">' + b.l + '</td><td class="num">' + b.avgPF + '</td></tr>';
     });
     html += '</tbody></table></div>';
@@ -4472,6 +4486,11 @@ var tpSub = 'players', TPTABS = [['players', 'Top started players by owner'],
 var lnSub = 'lineup', LNTABS = [['lineup', 'Lineup lookup'], ['rosters', 'Highest &amp; lowest rosters'], ['possc', 'Positional scoring']];
 var ROSTERS = {}, LINEUPS = {}, WEEKROS = {}, LUINDEX = null, LULOADING = false, PENDING_LU = null;
 function initLNTabs() {
+  if (!initLNTabs._qs) {
+    initLNTabs._qs = 1;
+    var tb = routeGetQS('tab');
+    if (tb && LNTABS.some(function (t) { return t[0] === tb; })) lnSub = tb;
+  }
   if (el('lnPills').innerHTML) return;
   el('lnPills').innerHTML = LNTABS.map(function (t) {
     return '<button class="pill" data-sub="' + t[0] + '">' + t[1] + '</button>';
@@ -4480,6 +4499,7 @@ function initLNTabs() {
     b.onclick = function () {
       lnSub = b.dataset.sub;
       showLNSub();
+      if (CURPAGE === 'lineups') routeSetQS({ tab: lnSub === 'lineup' ? '' : lnSub });
       if (lnSub === 'lineup') ensureLineupTab();
       else if (lnSub === 'rosters') ensureRosters();
       else ensurePossc();
@@ -6086,6 +6106,11 @@ var HONORS = [
 var trSub = 'trophy', TRTABS = [['trophy', 'Trophy room'], ['timeline', 'Timeline'], ['frat', 'Fraternal orders']]
   .concat(HONORS.map(function (x) { return [x[0], x[1]]; }));
 function initTrTabs() {
+  if (!initTrTabs._qs) {
+    initTrTabs._qs = 1;
+    var tb = routeGetQS('tab');
+    if (tb && TRTABS.some(function (t) { return t[0] === tb; })) trSub = tb;
+  }
   if (el('trPills').innerHTML) return;
   el('trPills').innerHTML = TRTABS.map(function (t) {
     return '<button class="pill" data-sub="' + t[0] + '">' + t[1] + '</button>';
@@ -6094,11 +6119,17 @@ function initTrTabs() {
     b.onclick = function () {
       trSub = b.dataset.sub;
       showTrSub();
+      if (CURPAGE === 'trophy') routeSetQS({ tab: trSub === 'trophy' ? '' : trSub });
       if (trSub === 'frat') renderFraternal();
       else if (trSub !== 'trophy' && trSub !== 'timeline') renderHonor(trSub);
     };
   });
   showTrSub();
+  // a deep link can land on a tab whose content only renders on click
+  try {
+    if (trSub === 'frat') renderFraternal();
+    else if (trSub !== 'trophy' && trSub !== 'timeline') renderHonor(trSub);
+  } catch (eTr) { }
 }
 function showTrSub() {
   var pane = (trSub === 'trophy' || trSub === 'frat' || trSub === 'timeline') ? trSub : 'honor';
