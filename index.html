@@ -4888,12 +4888,61 @@ function renderOwnerPage() {
     if (r[C('RunnerUp')] === O) runs.push(r[C('Year')]);
     if (r[C('ScoringTitle')] === O) scor.push(r[C('Year')]);
   });
+  // league-wide context so every card can say where this owner ranks
+  var lgAll = {};
+  DATA.games.rows.forEach(function (r) {
+    var o2 = r[go]; if (!o2) return;
+    var pf2 = Number(r[gpf]) || 0, pa2 = Number(r[gpa]) || 0;
+    if (!pf2 && !pa2) return;
+    var e4 = lgAll[o2] = lgAll[o2] || { w: 0, l: 0, pf: 0 };
+    if (pf2 > pa2) e4.w++; else e4.l++;
+    e4.pf += pf2;
+  });
+  var chCnt = {}, scCnt = {}, poCnt = {}, dvCnt = {};
+  DATA.champions.rows.forEach(function (r) {
+    var cc = r[C('Champion')], sc2 = r[C('ScoringTitle')];
+    if (cc) chCnt[cc] = (chCnt[cc] || 0) + 1;
+    if (sc2) scCnt[sc2] = (scCnt[sc2] || 0) + 1;
+  });
+  var divSeasons = {};   // this owner's seasons per division
+  DATA.seasons.rows.forEach(function (r) {
+    var o2 = r[S('Owner')];
+    if (r[S('PlayoffAppearance')] === true) poCnt[o2] = (poCnt[o2] || 0) + 1;
+    if (r[S('DivisionChampion')] === true) dvCnt[o2] = (dvCnt[o2] || 0) + 1;
+    if (o2 === O) {
+      var dnm = String(r[S('Division')] == null ? '' : r[S('Division')]).trim() || '—';
+      var e5 = divSeasons[dnm] = divSeasons[dnm] || { n: 0, w: 0, l: 0, titles: 0, years: [] };
+      e5.n++; e5.w += Number(r[S('Wins')]) || 0; e5.l += Number(r[S('Losses')]) || 0;
+      if (r[S('DivisionChampion')] === true) e5.titles++;
+      e5.years.push(Number(r[S('Year')]));
+    }
+  });
+  function ordS(n2) { var sfx = ['th', 'st', 'nd', 'rd'], v2 = n2 % 100; return n2 + (sfx[(v2 - 20) % 10] || sfx[v2] || sfx[0]); }
+  function rankTxt(valFn) {
+    var mineV = valFn(O), higher = 0, tie = 0;
+    DATA.ownerNames.forEach(function (o2) {
+      if (o2 === O) return;
+      var v2 = valFn(o2);
+      if (v2 > mineV) higher++;
+      else if (v2 === mineV) tie++;
+    });
+    return (tie ? 'T-' : '') + ordS(higher + 1) + ' in the league';
+  }
   var html = '<div class="cards">' +
-    card('Career record', W + '-' + L, pct(W, L) + ' · ' + mine.length + ' games incl. playoffs') +
-    card('Championships', champs.length ? champs.length : '—', champs.join(', ') || 'still chasing') +
-    card('Points for', n1(PF), n1(mine.length ? PF / mine.length : 0) + ' per game') +
-    card('Scoring titles', scor.length ? scor.length : '—', scor.join(', ') || '') + '</div>' +
+    card('Career record', W + '-' + L,
+      pct(W, L) + ' · ' + rankTxt(function (o2) { var a4 = lgAll[o2]; return a4 && a4.w + a4.l ? a4.w / (a4.w + a4.l) : 0; })) +
+    card('Points for', n1(PF),
+      n1(mine.length ? PF / mine.length : 0) + ' per game · ' + rankTxt(function (o2) { return lgAll[o2] ? lgAll[o2].pf : 0; })) +
+    card('Championships', champs.length ? champs.length : '—',
+      (champs.join(', ') || 'still chasing') + ' · ' + rankTxt(function (o2) { return chCnt[o2] || 0; })) +
+    card('Scoring titles', scor.length ? scor.length : '—',
+      (scor.length ? scor.join(', ') + ' · ' : '') + rankTxt(function (o2) { return scCnt[o2] || 0; })) +
+    card('Playoff appearances', poCnt[O] || 0,
+      rankTxt(function (o2) { return poCnt[o2] || 0; })) +
+    card('Division titles', dvCnt[O] || 0,
+      rankTxt(function (o2) { return dvCnt[o2] || 0; })) + '</div>' +
     '<h2>Year by year</h2><div class="twrap"><table id="opYears"></table></div>' +
+    '<h2>Divisions</h2><div class="twrap"><table id="opDivs"></table></div>' +
     '<h2>Head to head</h2><div class="twrap"><table id="opH2h"></table></div>' +
     '<h2>Best weeks</h2><div class="twrap"><table id="opWeeks"></table></div>';
   // heavier bundles enrich the page when they arrive
@@ -4950,22 +4999,31 @@ function renderOwnerPage() {
   }
   el('opBody').innerHTML = html;
   var ys = Object.keys(perY).map(Number).sort(function (a, b) { return b - a; });
-  table('opYears', ['Year', 'W-L', 'Win %', 'PF', 'PF / game', 'Honors'],
+  sortableTable('opYears', ['Year', 'W-L', 'Win %', 'PF', 'PF / game', 'Honors'],
     ys.map(function (y) {
       var e3 = perY[y];
       var badge = (champs.indexOf(y) > -1 ? '🏆 Champion ' : '') +
         (runs.indexOf(y) > -1 ? '🥈 Runner-up ' : '') +
         (scor.indexOf(y) > -1 ? '🎯 Scoring title' : '');
       return [y, e3.w + '-' + e3.l, pct(e3.w, e3.l), n1(e3.pf), n1(e3.g ? e3.pf / e3.g : 0), badge];
-    }), [0, 2, 3, 4]);
+    }), [0, 2, 3, 4], [5], 0, 1);
+  var divOrder = ['Premier', 'Second', 'Third'];
+  var divNames = divOrder.filter(function (d2) { return divSeasons[d2]; })
+    .concat(Object.keys(divSeasons).filter(function (d2) { return divOrder.indexOf(d2) === -1; }).sort());
+  table('opDivs', ['Division', 'Seasons', 'W-L', 'Win %', 'Division titles', 'Years'],
+    divNames.map(function (d2) {
+      var e6 = divSeasons[d2];
+      return ['<b>' + d2 + '</b>', e6.n, e6.w + '-' + e6.l, pct(e6.w, e6.l), e6.titles || '',
+        '<span class="wraptext">' + e6.years.sort(function (a, b) { return a - b; }).join(', ') + '</span>'];
+    }), [1, 2, 3, 4]);
   var oppList = Object.keys(h2h).sort(function (a, b) {
     return (h2h[b].w + h2h[b].l) - (h2h[a].w + h2h[a].l) || (a < b ? -1 : 1);
   });
-  table('opH2h', ['Opponent', 'W-L', 'Win %', 'PF', 'PA'],
+  sortableTable('opH2h', ['Opponent', 'W-L', 'Win %', 'PF', 'PA'],
     oppList.map(function (o2) {
       var h3 = h2h[o2];
       return ['<b>' + o2 + '</b>', h3.w + '-' + h3.l, pct(h3.w, h3.l), n1(h3.pf), n1(h3.pa)];
-    }), [2, 3, 4]);
+    }), [1, 2, 3, 4], [], 2, 1);
   weeks.sort(function (a, b) { return b.pf - a.pf; });
   table('opWeeks', ['Year', 'Week', 'PF', 'Opponent', 'Result'],
     weeks.slice(0, 5).map(function (wv) {
