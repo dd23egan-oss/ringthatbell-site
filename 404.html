@@ -1010,7 +1010,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2257';
+var RTB_BUILD = '1109.2301';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -4175,18 +4175,31 @@ function renderCurrent() {
                            premMax.length > 1 ? premMax[1] : -1);
         var mb = bar + 1 - c.st[o].w;
         if (mb <= PM.remain[o]) byeL.push({ o: o, m: Math.max(0, mb) });
-        // division title
-        var rv = (c.divRanks[c.div[o]] || []).filter(function (x) { return x !== o; });
-        if (rv.length) {
-          var md = Math.max.apply(null, rv.map(function (x) { return mxw[x]; })) + 1 - c.st[o].w;
-          if (md <= PM.remain[o]) divRows.push({ o: o, m: Math.max(0, md), d: c.div[o] });
-        }
         // playoff berth (shorter of division / wild-card paths)
         var m5 = PM.magic(o);
         if (m5 != null) berth.push({ o: o, m: m5 });
       });
-      function mSort(a, b) { return a.m - b.m || c.st[b.o].w - c.st[a.o].w || c.st[b.o].pf - c.st[a.o].pf; }
-      function mCell(m) { return m === 0 ? '<span class="chip div">Clinched ✓</span>' : '<b>' + m + '</b>'; }
+      // division titles: every division gets a row — owners who can clinch, or the current
+      // leader with "—" when no clinch is on the table yet
+      ['Premier', 'Second', 'Third'].forEach(function (d) {
+        var members = (c.divRanks[d] || []);
+        if (!members.length) return;
+        var got = false;
+        members.forEach(function (o) {
+          var rv = members.filter(function (x) { return x !== o; });
+          if (!rv.length) return;
+          var md = Math.max.apply(null, rv.map(function (x) { return mxw[x]; })) + 1 - c.st[o].w;
+          if (md <= PM.remain[o]) { divRows.push({ o: o, m: Math.max(0, md), d: d }); got = true; }
+        });
+        if (!got) divRows.push({ o: members[0], m: null, d: d });
+      });
+      function mSort(a, b) {
+        return (a.m == null ? 98 : a.m) - (b.m == null ? 98 : b.m) ||
+          c.st[b.o].w - c.st[a.o].w || c.st[b.o].pf - c.st[a.o].pf;
+      }
+      function mCell(m) {
+        return m === 0 ? '<span class="chip div">Clinched ✓</span>' : m == null ? '—' : '<b>' + m + '</b>';
+      }
       function mTable(title, list, withDiv) {
         if (!list.length) return '';
         var h3 = '<h2 style="font-size:15px">' + title + '</h2><div class="twrap"><table class="fit"><thead><tr>' +
@@ -4209,7 +4222,7 @@ function renderCurrent() {
       if (mHtml) {
         html += mHtml + '<div class="note">Each magic # is the owner’s wins that lock the prize no matter what anyone else does; only owners who can clinch are listed, and ties count against (a shade conservative). ' +
           '1 seed = finishing with strictly the league’s best record. The bye table is the record route to a top-2 seed — it holds up even if the Premier winner takes the other bye. ' +
-          'Making the playoffs uses the shorter of the division and wild-card paths.</div>';
+          'Making the playoffs uses the shorter of the division and wild-card paths. In the division table, a “—” shows the current leader of a race nobody can clinch yet.</div>';
       }
     }
     // clinches & eliminations (mathematical, shown once the season is deep enough)
