@@ -1000,7 +1000,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2046';
+var RTB_BUILD = '1109.2105';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -5136,8 +5136,8 @@ function renderPickem() {
     var lead = agg[list[0]];
     var gbTxt = function (o) {
       if (o === list[0]) return '—';
-      var gb = ((lead[0] - agg[o][0]) + (agg[o][1] - lead[1])) / 2;
-      return gb <= 0 ? '—' : (gb % 1 ? gb.toFixed(1) : String(gb));
+      var gb = lead[0] - agg[o][0];   // games back = wins behind the leader
+      return gb <= 0 ? '—' : String(gb);
     };
     table('pkStandTable', ['RK', 'Owner', 'W-L-P', 'Win %', 'GB'],
       list.map(function (o, i2) {
