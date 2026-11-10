@@ -1494,11 +1494,12 @@ function renderHomeChases() {
   var box = el('homeChases');
   if (!box || !DATA || !DATA.games) return;
   var rows = DATA.games.rows;
-  var gy = G('Year'), gs = G('SerialWeek'), go = G('Owner'), gpf = G('PointsFor'), gpg = G('PlayoffGame');
+  var gy = G('Year'), gs = G('SerialWeek'), go = G('Owner'), gpf = G('PointsFor'),
+      gpa = G('PointsAgainst'), gpg = G('PlayoffGame');
   var byO = {}, maxYear = 0;
   rows.forEach(function (r) {
     var o = r[go]; if (!o) return;
-    (byO[o] = byO[o] || []).push([Number(r[gs]), Number(r[gpf]) || 0]);
+    (byO[o] = byO[o] || []).push([Number(r[gs]), Number(r[gpf]) || 0, Number(r[gpa]) || 0]);
     maxYear = Math.max(maxYear, Number(r[gy]) || 0);
   });
   Object.keys(byO).forEach(function (o) { byO[o].sort(function (a, b) { return a[0] - b[0]; }); });
@@ -1519,6 +1520,25 @@ function renderHomeChases() {
       lines.push('🔥 <b>' + cur.o + '</b> has scored ' + TH[1] + ' in <b>' + cur.n +
         ' straight</b> — ' + (gap <= 0 ? 'that’s the league record, live.' :
           gap + ' shy of the record (' + best.n + ', ' + best.o + ').'));
+    }
+  });
+  // win / losing streaks vs the all-time records
+  [true, false].forEach(function (isW) {
+    var best = { n: 0, o: '' }, cur = { n: 0, o: '' };
+    Object.keys(byO).forEach(function (o) {
+      var run = 0;
+      byO[o].forEach(function (g) {
+        if (!g[1] && !g[2]) return;   // unplayed
+        run = ((g[1] > g[2]) === isW) ? run + 1 : 0;
+        if (run > best.n) best = { n: run, o: o };
+      });
+      if (run > cur.n) cur = { n: run, o: o };
+    });
+    if (cur.n >= 4 && cur.n >= best.n - 3) {
+      var gap2 = best.n - cur.n;
+      lines.push((isW ? '🏃 <b>' + cur.o + '</b> has <b>won ' : '🪦 <b>' + cur.o + '</b> has <b>lost ') +
+        cur.n + ' straight</b> — ' + (gap2 <= 0 ? 'that’s the league record, live.' :
+          gap2 + ' from the all-time ' + (isW ? 'win' : 'losing') + '-streak record (' + best.n + ', ' + best.o + ').'));
     }
   });
   // season scoring pace vs the best seasons ever (regular season only)
