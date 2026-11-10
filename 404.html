@@ -1000,7 +1000,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2110';
+var RTB_BUILD = '1109.2111';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3862,6 +3862,27 @@ function renderCurrent() {
           '<td class="num">' + b.w + '</td><td class="num">' + b.l + '</td></tr>';
       });
       html += '</tbody></table></div>';
+    }
+    // magic numbers to clinch an auto bid
+    if (showMagic) {
+      var mgList = c.owners.slice().map(function (o) {
+        var m5 = PM.magic(o), st5 = PM.elim(o);
+        return { o: o, m: m5, dead: st5.autoDead };
+      }).sort(function (a, b) {
+        function kv(x) { return x.m === 0 ? -1 : x.m != null ? x.m : x.dead ? 99 : 50; }
+        return kv(a) - kv(b) || c.st[b.o].w - c.st[a.o].w || c.st[b.o].pf - c.st[a.o].pf;
+      });
+      html += '<h2 style="font-size:15px">Magic numbers — clinching a playoff berth</h2><div class="twrap"><table class="fit"><thead><tr>' +
+        '<th>Team</th><th class="num">W-L</th><th class="num">Games left</th><th class="num">Magic #</th></tr></thead><tbody>';
+      mgList.forEach(function (x) {
+        var cell = x.m === 0 ? '<span class="chip div">Clinched ✓</span>' :
+          x.m != null ? '<b>' + x.m + '</b>' :
+          x.dead ? '<span class="loss">PF seed only</span>' : '—';
+        html += '<tr' + (x.m === 0 ? ' class="qrow"' : '') + '><td><b>' + x.o + '</b></td>' +
+          '<td class="num">' + c.st[x.o].w + '-' + c.st[x.o].l + '</td>' +
+          '<td class="num">' + PM.remain[x.o] + '</td><td class="num">' + cell + '</td></tr>';
+      });
+      html += '</tbody></table></div><div class="note">Magic # = wins that lock an auto bid no matter what anyone else does (the shorter of the division and wild-card paths). “—” means no clinch is possible yet this week; “PF seed only” means the auto-bid doors have closed and the points-for 6 seed is the remaining path.</div>';
     }
     // clinches & eliminations (mathematical, shown once the season is deep enough)
     if (c.played >= 6) {
