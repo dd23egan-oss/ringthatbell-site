@@ -468,6 +468,7 @@
     <p class="intro" id="homeIntro"></p>
     <div class="weekcta"><button class="btn cta" id="btnThisWeek">This Week's Matchups</button></div>
     <div class="champStrip" id="champStrip"></div>
+    <div id="homeChases" style="display:none"></div>
 
     <h2 class="secHead">This season</h2>
     <div class="tiles" id="tilesCurrent"></div>
@@ -904,6 +905,20 @@
     </div>
   </div>
 
+  <div class="view" id="v-owners">
+    <h1>Owner profiles</h1>
+    <div class="controls">
+      <label for="selOPOwner">Owner</label><select id="selOPOwner"></select>
+    </div>
+    <div id="opBody"></div>
+  </div>
+
+  <div class="view" id="v-pickem">
+    <h1>Pick&rsquo;em</h1>
+    <div class="note" id="pkMsg"></div>
+    <div id="pkBody"></div>
+  </div>
+
   <div class="view" id="v-taxisquads">
     <h1>Taxi squads</h1>
     <div class="controls">
@@ -927,6 +942,10 @@
     <div class="dsub" id="trsub-trophy">
       <div class="twrap"><table id="trophyTable"></table></div>
       <div class="note">Each owner has a consistent color across the table.</div>
+    </div>
+    <div class="dsub" id="trsub-timeline">
+      <div id="trTimeline"></div>
+      <div class="note" id="trTlNote"></div>
     </div>
     <div class="dsub" id="trsub-honor">
       <div class="twrap"><table id="honorTable"></table></div>
@@ -1000,7 +1019,8 @@ var SITE_BASE = /\.github\.io$/.test(location.hostname) ? '/ringthatbell-site' :
 var PAGE_SLUGS = { home: '', thisweek: 'this-week', current: 'current-season', budgets: 'draft-dollars',
   keepers: 'keeper-options', taxisquads: 'taxi-squads', devydraft: 'devy-draft', devy: 'devy-players',
   draft: 'draft-history', seasons: 'seasons', h2h: 'head-to-head', records: 'record-book',
-  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution' };
+  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution',
+  pickem: 'pickem', owners: 'owners' };
 function pageFromPath() {
   var p = location.pathname;
   if (SITE_BASE && p.indexOf(SITE_BASE) === 0) p = p.slice(SITE_BASE.length);
@@ -1028,13 +1048,13 @@ var DATA = null, AGGS = {}, SEC = null, SECLOADING = false, CONST = null, CONSTL
 var DI = null, DDI = null, KI = null, TDI = null;
 var lastDraft = null, lastKeep = null, POSRANK = {};
 var PAGES = [['home','Home'],['current','Current season standings'],['seasons','Seasons'],['h2h','Head to head'],['records','Records'],['topplayers','Top players'],['lineups','Historic starting lineups and scoring by positions'],
-             ['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper options'],['devydraft','Devy draft'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"]];
+             ['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper options'],['devydraft','Devy draft'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"],['pickem','Pick’em'],['owners','Owner profiles']];
 var RULES_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdtN5Oopj3cklw4TIE_nhuLOmkv2KLOzf6MyP__7paD9rSoLQ/viewform';
 // Grouped navigation: four top-level entries instead of thirteen.
 var NAVGROUPS = [
   { page: 'home', label: 'Home' },
-  { label: 'This season', items: ['thisweek', 'current', 'budgets', 'keepers', 'taxisquads', 'devydraft', 'rules'] },
-  { label: 'League history', items: ['seasons', 'records', 'h2h', 'topplayers', 'lineups', 'draft', 'trophy'] },
+  { label: 'This season', items: ['thisweek', 'current', 'pickem', 'budgets', 'keepers', 'taxisquads', 'devydraft', 'rules'] },
+  { label: 'League history', items: ['owners', 'seasons', 'records', 'h2h', 'topplayers', 'lineups', 'draft', 'trophy'] },
   { page: 'constitution', label: 'Constitution' }
 ];
 function pageLabel(id) {
@@ -1234,6 +1254,12 @@ function show(page) {
   });
   if (page === 'records') ensureAggs();
   if (page === 'thisweek') ensureThisWeek();
+  if (page === 'pickem') ensurePickem();
+  if (page === 'owners') {
+    initOwnerPage();
+    // the profile enriches itself as the heavier bundles arrive
+    ensureSecondary(); ensureTrades();
+  }
   if (page === 'draft' || page === 'keepers' || page === 'devydraft') {
     if (!SEC) el(page === 'draft' ? 'draftMsg' : page === 'devydraft' ? 'devyDMsg' : 'keepMsg').textContent = 'Loading draft & keeper data\u2026';
     ensureSecondary();
@@ -1390,6 +1416,8 @@ function downloadCSV(name, heads, rows) {
 // ---------- home ----------
 var ICONS = {
   devydraft: '<rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  pickem: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+  owners: '<circle cx="12" cy="8" r="3.5"/><path d="M5.5 19c1.2-3.4 3.5-5 6.5-5s5.3 1.6 6.5 5"/>',
   standings: '<path d="M9 20v-9h6v9M3.5 20v-5h5.5v5M15 20v-7h5.5v7"/><path d="M3 20h18"/>',
   dollars: '<circle cx="12" cy="12" r="8.6"/><path d="M12 6.8v10.4M14.6 9.2c-.5-.9-1.5-1.4-2.6-1.4-1.5 0-2.7.9-2.7 2.1 0 2.9 5.4 1.5 5.4 4.3 0 1.2-1.2 2.1-2.7 2.1-1.1 0-2.1-.5-2.6-1.4"/>',
   taxi: '<path d="M5 17h14M6 17v2M18 17v2M4 13l1.4-4.2A2 2 0 0 1 7.3 7.4h9.4a2 2 0 0 1 1.9 1.4L20 13v4H4z"/><circle cx="7.5" cy="14" r="1"/><circle cx="16.5" cy="14" r="1"/>',
@@ -1461,6 +1489,79 @@ function renderHomeBudgets() {
   });
   el('homeBudgets').innerHTML = html || '<div class="note">Add year blocks to the CurrentDraftDollars tab.</div>';
 }
+// "Chasing history": live record chases computed from the full game log
+function renderHomeChases() {
+  var box = el('homeChases');
+  if (!box || !DATA || !DATA.games) return;
+  var rows = DATA.games.rows;
+  var gy = G('Year'), gs = G('SerialWeek'), go = G('Owner'), gpf = G('PointsFor'), gpg = G('PlayoffGame');
+  var byO = {}, maxYear = 0;
+  rows.forEach(function (r) {
+    var o = r[go]; if (!o) return;
+    (byO[o] = byO[o] || []).push([Number(r[gs]), Number(r[gpf]) || 0]);
+    maxYear = Math.max(maxYear, Number(r[gy]) || 0);
+  });
+  Object.keys(byO).forEach(function (o) { byO[o].sort(function (a, b) { return a[0] - b[0]; }); });
+  var lines = [];
+  // active scoring streaks vs the all-time record
+  [[100, '100+'], [120, '120+']].forEach(function (TH) {
+    var th = TH[0], best = { n: 0, o: '' }, cur = { n: 0, o: '' };
+    Object.keys(byO).forEach(function (o) {
+      var run = 0;
+      byO[o].forEach(function (g) {
+        run = g[1] >= th ? run + 1 : 0;
+        if (run > best.n) best = { n: run, o: o };
+      });
+      if (run > cur.n) cur = { n: run, o: o };   // trailing run = live streak
+    });
+    if (cur.n >= 4 && cur.n >= best.n - 3) {
+      var gap = best.n - cur.n;
+      lines.push('🔥 <b>' + cur.o + '</b> has scored ' + TH[1] + ' in <b>' + cur.n +
+        ' straight</b> — ' + (gap <= 0 ? 'that’s the league record, live.' :
+          gap + ' shy of the record (' + best.n + ', ' + best.o + ').'));
+    }
+  });
+  // season scoring pace vs the best seasons ever (regular season only)
+  var curPF = {}, curG = {}, seasonTot = {};
+  rows.forEach(function (r) {
+    if (String(r[gpg]) === 'true') return;
+    var o = r[go], y = Number(r[gy]), v = Number(r[gpf]) || 0;
+    if (!o || !v) return;
+    if (y === maxYear) { curPF[o] = (curPF[o] || 0) + v; curG[o] = (curG[o] || 0) + 1; }
+    else seasonTot[o + '|' + y] = (seasonTot[o + '|' + y] || 0) + v;
+  });
+  var totals = Object.keys(seasonTot).map(function (k) { return { k: k, v: seasonTot[k] }; })
+    .sort(function (a, b) { return b.v - a.v; });
+  Object.keys(curPF).forEach(function (o) {
+    if ((curG[o] || 0) < 4 || !totals.length) return;
+    var pace = curPF[o] / curG[o] * 14;
+    var rank = 1; totals.forEach(function (t) { if (t.v > pace) rank++; });
+    if (rank <= 3) {
+      var rec = totals[0], rk = rec.k.split('|');
+      lines.push('📈 <b>' + o + '</b> is on pace for ' + Math.round(pace) + ' points — ' +
+        (rank === 1 ? 'that would be the best scoring season ever (record ' + Math.round(rec.v) + ', ' + rk[0] + ' in ' + rk[1] + ').'
+          : 'the #' + rank + ' scoring season in league history.'));
+    }
+  });
+  // weeks this season already in the all-time top 10
+  var allW = [];
+  rows.forEach(function (r) { var v = Number(r[gpf]) || 0; if (v) allW.push(v); });
+  allW.sort(function (a, b) { return b - a; });
+  var top10 = allW[9] || 1e9, bragged = 0;
+  rows.forEach(function (r) {
+    if (bragged >= 2 || Number(r[gy]) !== maxYear) return;
+    var v = Number(r[gpf]) || 0;
+    if (v >= top10) {
+      var rank2 = 1; allW.forEach(function (x) { if (x > v) rank2++; });
+      lines.push('🏆 <b>' + r[go] + '</b>’s ' + v.toFixed(1) + ' this season stands as the #' + rank2 + ' week in league history.');
+      bragged++;
+    }
+  });
+  if (!lines.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = '<h2 class="secHead">Chasing history</h2><div class="card"><ul style="margin:4px 0 4px 18px;padding:0">' +
+    lines.slice(0, 5).map(function (L) { return '<li style="margin:4px 0">' + L + '</li>'; }).join('') + '</ul></div>';
+}
 function renderHome() {
   var name = CONFIG.LeagueName || 'Ring That Bell Fantasy Football';
   el('heroTitle').textContent = name;
@@ -1478,6 +1579,7 @@ function renderHome() {
      'full history of the league \u2014 look up head-to-head records between any two managers, dig through every ' +
      'draft, settle arguments with the record book, and look back on the teams of the past.');
   startCountdown();
+  try { renderHomeChases(); } catch (eCh) { }
 
   var ch = DATA.champions.rows.slice().sort(function (a, b) { return b[C('Year')] - a[C('Year')]; });
   var latest = ch[0];
@@ -1504,6 +1606,7 @@ function renderHome() {
 
   el('tilesCurrent').innerHTML =
     tile('standings', 'Current standings', 'Playoff picture', 'current') +
+    tile('pickem', 'Pick’em', 'Lines & standings', 'pickem') +
     tile('dollars', 'Draft dollars', '2026 & 2027 budgets', 'budgets') +
     tile('taxi', 'Taxi squads', 'By owner', 'taxisquads') +
     tile('keeper', 'Keeper options', 'Prices & tags', 'keepers') +
@@ -1512,6 +1615,7 @@ function renderHome() {
     tile('devy', 'Current devy players', 'College watch list', 'devy') +
     tile('idea', 'Rule proposals', 'Submit a change idea', 'rules');
   el('tilesHistory').innerHTML =
+    tile('owners', 'Owner profiles', 'One page per manager', 'owners') +
     tile('history', 'Past season standings', 'Every year', 'seasons') +
     tile('records', 'League records', 'The record book', 'records') +
     tile('h2h', 'Head to head', 'Manager vs manager', 'h2h') +
@@ -1541,18 +1645,57 @@ function renderHome() {
 function card(label, value, sub) {
   return '<div class="card stat"><div class="label">' + label + '</div><div class="value">' + value + '</div><div class="sub">' + (sub || '') + '</div></div>';
 }
+// ---------- perpetual league countdown: always pointing at the next date ----------
+function rtbEvents_(sy) {
+  // calendar rules for the season starting in year sy
+  function laborDay(y) { var d = new Date(y, 8, 1); return new Date(y, 8, 1 + ((8 - d.getDay()) % 7)); }
+  function nthDow(y, mo, dow, n) { var d = new Date(y, mo, 1); return new Date(y, mo, 1 + ((dow - d.getDay() + 7) % 7) + (n - 1) * 7); }
+  function lastDow(y, mo, dow) { var d = new Date(y, mo + 1, 0); return new Date(y, mo, d.getDate() - ((d.getDay() - dow + 7) % 7)); }
+  function at(d, h, mi) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, mi || 0); }
+  function plus(d, days) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days); }
+  var ld = laborDay(sy);
+  var wk1Thu = plus(ld, 3);          // NFL kickoff Thursday
+  var draftSat = plus(ld, -2);       // Saturday before Labor Day
+  return [
+    { t: at(plus(draftSat, -7), 23, 59), label: 'Keeper & devy declarations' },
+    { t: at(draftSat, 12, 0), label: 'Draft day' },
+    { t: at(wk1Thu, 20, 20), label: 'NFL kickoff' },
+    { t: at(plus(wk1Thu, 63), 20, 15), label: 'Trade deadline' },          // TNF week 10
+    { t: at(plus(wk1Thu, 98), 20, 15), label: 'Fantasy playoffs' },        // week 15
+    { t: at(plus(wk1Thu, 112), 20, 15), label: 'Championship week' },      // week 17
+    { t: at(plus(wk1Thu, 128), 13, 0), label: 'NFL playoffs' },            // wild-card Saturday
+    { t: at(nthDow(sy + 1, 1, 0, 2), 18, 30), label: 'Super Bowl' },       // 2nd Sunday of Feb
+    { t: at(nthDow(sy + 1, 2, 3, 2), 16, 0), label: 'NFL free agency' },   // 2nd Wednesday of Mar
+    { t: at(lastDow(sy + 1, 3, 4), 20, 0), label: 'NFL Draft' }            // last Thursday of Apr
+  ];
+}
+function nextLeagueEvent_() {
+  var now = new Date(), best = null, y0 = now.getFullYear();
+  [y0 - 1, y0].forEach(function (sy) {
+    rtbEvents_(sy).forEach(function (ev) {
+      if (ev.t > now && (!best || ev.t < best.t)) best = ev;
+    });
+  });
+  // a hand-set SiteConfig date (historically the draft) can still take the slot
+  if (CONFIG.CountdownTarget) {
+    var ds = String(CONFIG.CountdownTarget).slice(0, 10);
+    var t2 = new Date(ds + 'T09:00:00');
+    if (!isNaN(t2) && t2 > now && (!best || t2 < best.t)) best = { t: t2, label: 'Draft day' };
+  }
+  return best;
+}
 function startCountdown() {
-  if (!CONFIG.CountdownTarget) return;
-  // tolerate a real date cell (serializes as 2026-08-29T04:00:00.000Z) as well as plain YYYY-MM-DD
-  var dstr = String(CONFIG.CountdownTarget).slice(0, 10);
-  var target = new Date(dstr + 'T09:00:00');
-  if (isNaN(target)) return;
-  var box = el('countdown'); box.style.display = 'flex';
+  var box = el('countdown');
+  var ev = nextLeagueEvent_();
+  if (!ev) { box.style.display = 'none'; return; }
+  box.style.display = 'flex';
+  box.style.flexWrap = 'wrap';
   function tick() {
-    var ms = target - new Date();
-    if (ms <= 0) { box.innerHTML = '<div><b>It\u2019s draft day</b></div>'; return; }
+    var ms = ev.t - new Date();
+    if (ms <= 0) { var nx = nextLeagueEvent_(); if (nx) ev = nx; ms = Math.max(0, ev.t - new Date()); }
     var d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4);
-    box.innerHTML = '<div><b>' + d + '</b><span>DAYS</span></div><div><b>' + h + '</b><span>HRS</span></div><div><b>' + m + '</b><span>MIN</span></div>';
+    box.innerHTML = '<div style="flex-basis:100%;font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;opacity:.85;margin-bottom:2px">\u23f3 ' + ev.label + '</div>' +
+      '<div><b>' + d + '</b><span>DAYS</span></div><div><b>' + h + '</b><span>HRS</span></div><div><b>' + m + '</b><span>MIN</span></div>';
   }
   tick();
   if (startCountdown._t) clearInterval(startCountdown._t);
@@ -1941,6 +2084,7 @@ function ensureSecondary() {
     renderDollars(); renderDraft(); renderDraftRecords(); renderLocations();
     renderKeepers(); renderDevy();
     showDraftSub(curDsub);
+    try { if (CURPAGE === 'owners') renderOwnerPage(); } catch (eOP) { }
   }).withFailureHandler(function (e) {
     SECLOADING = false;
     var msg = 'Could not load draft & keeper data: ' + (e && e.message ? e.message : e);
@@ -3735,6 +3879,7 @@ function ensureBudgets() {
     el('selBOwner').innerHTML = '<option>All owners</option>' + Object.keys(owners).sort().map(function (o) {
       return '<option>' + o + '</option>';
     }).join('');
+    if (CURPAGE === 'budgets') setSelIf_('selBOwner', routeGetQS('owner'));
     el('selBOwner').onchange = function () { renderBudgets(); if (BUDHIST) renderBudHist(); if (TRADES) renderTrades(); };
   initBudPills();
     el('csvBudget').onclick = function () {
@@ -3760,6 +3905,31 @@ function budgetCols_(b) {
   return { iO: iO, iA: iA, iR: iR };
 }
 var BUDHIST = null, BUDVIEW = 'cur';
+// ---------- shareable filter URLs ----------
+function routeGetQS(name) {
+  try { return new URLSearchParams(location.search).get(name); } catch (e) { return null; }
+}
+function routeSetQS(params) {
+  if (!window.history || !history.replaceState) return;
+  try {
+    var sp = new URLSearchParams(location.search);
+    Object.keys(params).forEach(function (k) {
+      var v = params[k];
+      if (v == null || v === '' || /^all[ s]/i.test(String(v) + ' ')) sp.delete(k);
+      else sp.set(k, v);
+    });
+    var q = sp.toString();
+    history.replaceState(null, '', location.pathname + (q ? '?' + q : ''));
+  } catch (e) { }
+}
+function setSelIf_(id, v) {
+  var s = el(id);
+  if (!s || v == null || v === '') return false;
+  for (var i2 = 0; i2 < s.options.length; i2++) {
+    if (s.options[i2].value === v || s.options[i2].text === v) { s.value = s.options[i2].value; return true; }
+  }
+  return false;
+}
 function initBudPills() {
   document.querySelectorAll('#budPills .pill').forEach(function (p) {
     p.onclick = function () {
@@ -3769,10 +3939,20 @@ function initBudPills() {
       el('budgetNote').style.display = BUDVIEW === 'cur' ? '' : 'none';
       el('budHist').style.display = BUDVIEW === 'hist' ? 'block' : 'none';
       el('budTrades').style.display = BUDVIEW === 'trades' ? 'block' : 'none';
+      if (CURPAGE === 'budgets') routeSetQS({ tab: BUDVIEW === 'cur' ? '' : BUDVIEW });
       if (BUDVIEW === 'hist') ensureBudHist();
       if (BUDVIEW === 'trades') ensureTrades();
     };
   });
+  // deep link: /draft-dollars?tab=trades&owner=Brian&year=2027
+  if (!initBudPills._qs) {
+    initBudPills._qs = 1;
+    var tb = routeGetQS('tab');
+    if (tb) {
+      var btn = document.querySelector('#budPills .pill[data-bv="' + tb + '"]');
+      if (btn) btn.click();
+    }
+  }
 }
 function ensureBudHist() {
   if (BUDHIST) { renderBudHist(); return; }
@@ -3828,10 +4008,15 @@ function renderBudHist() {
       .map(function (y) { return '<option>' + y + '</option>'; }).join('');
     el('selBHOwner').onchange = renderBudHist;
     el('selBHYear').onchange = renderBudHist;
+    if (CURPAGE === 'budgets') {
+      setSelIf_('selBHOwner', routeGetQS('owner'));
+      setSelIf_('selBHYear', routeGetQS('year'));
+    }
   }
   el('budRecs').innerHTML = budRecords(bi);
   var fo = (el('selBHOwner') && el('selBHOwner').value) || 'All owners';
   var fy = el('selBHYear').value;
+  if (CURPAGE === 'budgets' && BUDVIEW === 'hist') routeSetQS({ owner: fo, year: fy });
   // owner career stats card (all years, whatever the year filter says)
   var st = el('bhStats');
   if (fo === 'All owners') { st.style.display = 'none'; }
@@ -3894,7 +4079,9 @@ function ensureTrades() {
       .sort(function (a, b) { return b - a; })
       .map(function (y) { return '<option>' + y + '</option>'; }).join('');
     el('selTHYear').onchange = renderTrades;
+    if (CURPAGE === 'budgets') setSelIf_('selTHYear', routeGetQS('year'));
     renderTrades();
+    try { if (CURPAGE === 'owners') renderOwnerPage(); } catch (eOT) { }
   }).withFailureHandler(function (e) {
     TRADESLOADING = false;
     el('thNote').textContent = 'Could not load trade history: ' + (e && e.message ? e.message : e);
@@ -3925,6 +4112,7 @@ function renderTrades() {
   if (!TRADES) return;
   var fo = (el('selBOwner') && el('selBOwner').value) || 'All owners';
   var fy = (el('selTHYear') && el('selTHYear').value) || 'All years';
+  if (CURPAGE === 'budgets' && BUDVIEW === 'trades') routeSetQS({ owner: fo, year: fy });
   var box = el('thBox');
   box.style.display = 'none';
 
@@ -4433,6 +4621,271 @@ function renderLineup() {
   });
 }
 
+// ---------- owner profiles ----------
+function initOwnerPage() {
+  var s = el('selOPOwner');
+  if (!s.options.length) {
+    s.innerHTML = DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+    var q = routeGetQS('o');
+    if (q) setSelIf_('selOPOwner', q);
+    s.onchange = function () { renderOwnerPage(); };
+  }
+  renderOwnerPage();
+}
+function renderOwnerPage() {
+  var s = el('selOPOwner');
+  if (!s || !s.value || !DATA) return;
+  var O = s.value;
+  if (CURPAGE === 'owners') routeSetQS({ o: O });
+  var gy = G('Year'), go = G('Owner'), gpf = G('PointsFor'), gop = G('Opponent'),
+      gpa = G('PointsAgainst'), gl = G('WeekLabel');
+  var mine = DATA.games.rows.filter(function (r) {
+    return r[go] === O && ((Number(r[gpf]) || 0) || (Number(r[gpa]) || 0));
+  });
+  var W = 0, L = 0, PF = 0, perY = {}, h2h = {}, weeks = [];
+  mine.forEach(function (r) {
+    var pf = Number(r[gpf]) || 0, pa = Number(r[gpa]) || 0, y = Number(r[gy]);
+    var win = pf > pa;
+    if (win) W++; else L++;
+    PF += pf;
+    var e2 = perY[y] = perY[y] || { w: 0, l: 0, pf: 0, g: 0 };
+    e2[win ? 'w' : 'l']++; e2.pf += pf; e2.g++;
+    var opp = String(r[gop] == null ? '' : r[gop]);
+    if (opp) {
+      var h = h2h[opp] = h2h[opp] || { w: 0, l: 0, pf: 0, pa: 0 };
+      h[win ? 'w' : 'l']++; h.pf += pf; h.pa += pa;
+    }
+    weeks.push({ y: y, lbl: r[gl], pf: pf, opp: opp, pa: pa });
+  });
+  var champs = [], runs = [], scor = [];
+  DATA.champions.rows.forEach(function (r) {
+    if (r[C('Champion')] === O) champs.push(r[C('Year')]);
+    if (r[C('RunnerUp')] === O) runs.push(r[C('Year')]);
+    if (r[C('ScoringTitle')] === O) scor.push(r[C('Year')]);
+  });
+  var html = '<div class="cards">' +
+    card('Career record', W + '-' + L, pct(W, L) + ' · ' + mine.length + ' games incl. playoffs') +
+    card('Championships', champs.length ? champs.length : '—', champs.join(', ') || 'still chasing') +
+    card('Points for', n1(PF), n1(mine.length ? PF / mine.length : 0) + ' per game') +
+    card('Scoring titles', scor.length ? scor.length : '—', scor.join(', ') || '') + '</div>' +
+    '<h2>Year by year</h2><div class="twrap"><table id="opYears"></table></div>' +
+    '<h2>Head to head</h2><div class="twrap"><table id="opH2h"></table></div>' +
+    '<h2>Best weeks</h2><div class="twrap"><table id="opWeeks"></table></div>';
+  // heavier bundles enrich the page when they arrive
+  if (SEC && SEC.dollars) {
+    var di2 = ix(SEC.dollars);
+    var pts = [];
+    SEC.dollars.rows.forEach(function (r) {
+      if (String(r[di2.Owner] == null ? '' : r[di2.Owner]).trim() !== O) return;
+      var v = Number(r[di2.DollarsBeforeKeepers]);
+      if (!isNaN(v) && String(r[di2.DollarsBeforeKeepers]) !== '') pts.push({ y: Number(r[di2.Year]), v: v });
+    });
+    if (pts.length) {
+      var hi = pts.reduce(function (a, p) { return p.v > a.v ? p : a; });
+      var lo = pts.reduce(function (a, p) { return p.v < a.v ? p : a; });
+      var avg = pts.reduce(function (s2, p) { return s2 + p.v; }, 0) / pts.length;
+      html += '<h2>Draft dollars</h2><div class="cards">' +
+        card('Average budget', '$' + n1(avg), pts.length + ' seasons') +
+        card('Richest year', '$' + n1(hi.v), String(hi.y)) +
+        card('Leanest year', '$' + n1(lo.v), String(lo.y)) + '</div>' +
+        '<div class="note"><a href="#" data-oplink="dollars">Full budget history →</a></div>';
+    }
+    var i3 = devyIdx_();
+    if (i3) {
+      var held = 0, kept = 0, college = 0;
+      SEC.devy.rows.forEach(function (r) {
+        var cur = String(r[i3.cur] == null ? '' : r[i3.cur]).trim();
+        var p = String(r[i3.player] == null ? '' : r[i3.player]).trim();
+        if (cur !== O || !p || /^forfeit/i.test(p)) return;
+        held++;
+        var st2 = String(r[i3.status] == null ? '' : r[i3.status]).toLowerCase();
+        if (st2 === 'kept') kept++;
+        if (st2.indexOf('college') > -1 || st2 === 'declared') college++;
+      });
+      if (held) html += '<h2>Devy</h2><div class="cards">' +
+        card('Devy picks held', held, 'all-time') +
+        card('Kept', kept, held ? Math.round(kept / held * 1000) / 10 + '% hit rate' : '') +
+        card('In college now', college, 'current watch list') + '</div>' +
+        '<div class="note"><a href="#" data-oplink="devy">Devy history →</a></div>';
+    }
+  } else {
+    html += '<div class="note">Loading draft-dollar and devy details…</div>';
+  }
+  if (TRADES) {
+    var ids = {}, netAll = 0;
+    TRADES.forEach(function (r) {
+      if (r[4] !== O) return;
+      if (r[0].indexOf('T-') === 0) ids[r[0]] = 1;
+      netAll += (r[7] || 0) + (r[9] || 0);
+    });
+    html += '<h2>Trading</h2><div class="cards">' +
+      card('Trades made', Object.keys(ids).length, 'all-time') +
+      card('Net draft dollars', (netAll >= 0 ? '+$' : '−$') + n1(Math.abs(netAll)), 'won or paid across all years') + '</div>' +
+      '<div class="note"><a href="#" data-oplink="trades">Full trade ledger →</a></div>';
+  }
+  el('opBody').innerHTML = html;
+  var ys = Object.keys(perY).map(Number).sort(function (a, b) { return b - a; });
+  table('opYears', ['Year', 'W-L', 'Win %', 'PF', 'PF / game', 'Honors'],
+    ys.map(function (y) {
+      var e3 = perY[y];
+      var badge = (champs.indexOf(y) > -1 ? '🏆 Champion ' : '') +
+        (runs.indexOf(y) > -1 ? '🥈 Runner-up ' : '') +
+        (scor.indexOf(y) > -1 ? '🎯 Scoring title' : '');
+      return [y, e3.w + '-' + e3.l, pct(e3.w, e3.l), n1(e3.pf), n1(e3.g ? e3.pf / e3.g : 0), badge];
+    }), [0, 2, 3, 4]);
+  var oppList = Object.keys(h2h).sort(function (a, b) {
+    return (h2h[b].w + h2h[b].l) - (h2h[a].w + h2h[a].l) || (a < b ? -1 : 1);
+  });
+  table('opH2h', ['Opponent', 'W-L', 'Win %', 'PF', 'PA'],
+    oppList.map(function (o2) {
+      var h3 = h2h[o2];
+      return ['<b>' + o2 + '</b>', h3.w + '-' + h3.l, pct(h3.w, h3.l), n1(h3.pf), n1(h3.pa)];
+    }), [2, 3, 4]);
+  weeks.sort(function (a, b) { return b.pf - a.pf; });
+  table('opWeeks', ['Year', 'Week', 'PF', 'Opponent', 'Result'],
+    weeks.slice(0, 5).map(function (wv) {
+      return [wv.y, wv.lbl, '<b>' + n1(wv.pf) + '</b>', wv.opp,
+        wv.pf > wv.pa ? '<span class="win">W ' + n1(wv.pf) + '–' + n1(wv.pa) + '</span>'
+          : '<span class="loss">L ' + n1(wv.pf) + '–' + n1(wv.pa) + '</span>'];
+    }), [0, 2]);
+  el('opBody').querySelectorAll('a[data-oplink]').forEach(function (a2) {
+    a2.onclick = function (ev2) {
+      ev2.preventDefault();
+      var kind = a2.getAttribute('data-oplink');
+      if (kind === 'dollars') {
+        show('budgets');
+        var b2 = document.querySelector('#budPills .pill[data-bv="hist"]');
+        if (b2) b2.click();
+        if (setSelIf_('selBHOwner', O) && BUDHIST) renderBudHist();
+      } else if (kind === 'trades') {
+        show('budgets');
+        var b3 = document.querySelector('#budPills .pill[data-bv="trades"]');
+        if (b3) b3.click();
+        if (setSelIf_('selBOwner', O) && TRADES) renderTrades();
+      } else if (kind === 'devy') {
+        dvSub = 'history';
+        show('devydraft');
+        if (setSelIf_('selDvOwner', O) && SEC) renderDevy();
+      }
+    };
+  });
+}
+
+// ---------- pick'em ----------
+var PKDATA = null, PKLOADING = false;
+function ensurePickem() {
+  if (PKDATA) { renderPickem(); return; }
+  if (PKLOADING) return;
+  PKLOADING = true;
+  el('pkMsg').textContent = 'Loading pick’em…';
+  google.script.run.withSuccessHandler(function (d) {
+    PKLOADING = false; PKDATA = d; el('pkMsg').textContent = '';
+    renderPickem();
+  }).withFailureHandler(function (e) {
+    PKLOADING = false;
+    el('pkMsg').textContent = 'Could not load pick’em: ' + (e && e.message ? e.message : e);
+  }).getPickem();
+}
+function renderPickem() {
+  if (!PKDATA) return;
+  var res = PKDATA.results && PKDATA.results.rows ? PKDATA.results.rows : [];
+  var lines = PKDATA.lines && PKDATA.lines.rows ? PKDATA.lines.rows : [];
+  var picks = PKDATA.picks && PKDATA.picks.rows ? PKDATA.picks.rows : [];
+  var season = 0;
+  res.concat(lines).forEach(function (r) { season = Math.max(season, Number(r[0]) || 0); });
+  if (!season) {
+    el('pkBody').innerHTML = '<div class="note">Pick’em appears once the first week of lines goes out.</div>';
+    return;
+  }
+  // season standings + weekly grid source
+  var agg = {}, weeks = {}, byWk = {};
+  res.forEach(function (r) {
+    if (Number(r[0]) !== season) return;
+    var o = String(r[2]); if (!o || o === 'Owner') return;
+    var wN = Number(r[1]);
+    var e2 = agg[o] = agg[o] || [0, 0, 0];
+    e2[0] += Number(r[3]) || 0; e2[1] += Number(r[4]) || 0; e2[2] += Number(r[5]) || 0;
+    weeks[wN] = 1;
+    byWk[o + '|' + wN] = (Number(r[3]) || 0) + '-' + (Number(r[4]) || 0) +
+      ((Number(r[5]) || 0) ? '-' + (Number(r[5]) || 0) : '');
+  });
+  var list = Object.keys(agg).sort(function (a, b) {
+    return agg[b][0] - agg[a][0] || (agg[b][0] - agg[b][1]) - (agg[a][0] - agg[a][1]);
+  });
+  var wkList = Object.keys(weeks).map(Number).sort(function (a, b) { return a - b; });
+  // newest week's lines (resent forms can duplicate rows; the last copy wins)
+  var maxLw = 0;
+  lines.forEach(function (r) { if (Number(r[0]) === season) maxLw = Math.max(maxLw, Number(r[1]) || 0); });
+  var lm = {};
+  lines.forEach(function (r) {
+    if (Number(r[0]) === season && Number(r[1]) === maxLw) lm[r[2] + '|' + r[7]] = r;
+  });
+  var lineRows = Object.keys(lm).map(function (k) { return lm[k]; })
+    .sort(function (a, b) { return Number(a[2]) - Number(b[2]) || String(a[7]).length - String(b[7]).length; });
+  // newest graded board
+  var maxGw = 0;
+  picks.forEach(function (r) { if (Number(r[0]) === season) maxGw = Math.max(maxGw, Number(r[1]) || 0); });
+
+  var html = '';
+  if (list.length) html += '<h2>' + season + ' standings</h2><div class="twrap"><table id="pkStandTable"></table></div>' +
+    '<div class="note">Ordered by season wins. GB = games back. Best record against the spread wins bonus draft dollars for next season.</div>';
+  if (lineRows.length) html += '<h2>Week ' + maxLw + ' lines</h2><div class="twrap"><table id="pkLinesTable"></table></div>' +
+    '<div class="note">Picks go in through the weekly email form and lock when the Sunday reveal goes out.</div>';
+  if (maxGw) html += '<h2>Week ' + maxGw + ' board</h2><div id="pkBoard"></div>';
+  if (list.length && wkList.length) html += '<h2>Week by week</h2><div class="twrap"><table id="pkGridTable"></table></div>';
+  el('pkBody').innerHTML = html || '<div class="note">Pick’em appears once the first week of lines goes out.</div>';
+
+  if (list.length) {
+    var lead = agg[list[0]];
+    var gbTxt = function (o) {
+      if (o === list[0]) return '—';
+      var gb = ((lead[0] - agg[o][0]) + (agg[o][1] - lead[1])) / 2;
+      return gb <= 0 ? '—' : (gb % 1 ? gb.toFixed(1) : String(gb));
+    };
+    table('pkStandTable', ['RK', 'Owner', 'W-L-P', 'Win %', 'GB'],
+      list.map(function (o, i2) {
+        var a = agg[o], g = a[0] + a[1];
+        return [i2 + 1, (i2 === 0 ? '👑 ' : '') + '<b>' + o + '</b>', a.join('-'),
+          g ? (a[0] / g).toFixed(3).replace(/^0/, '') : '—', gbTxt(o)];
+      }), [0, 2, 3, 4]);
+  }
+  if (lineRows.length) {
+    table('pkLinesTable', ['Matchup', 'Line'],
+      lineRows.map(function (r) {
+        var isOU = String(r[7]) === 'true';
+        return ['<b>' + r[3] + '</b> vs <b>' + r[4] + '</b>' + (isOU ? ' <span class="chip slv">O/U</span>' : ''),
+          isOU ? 'Total ' + r[8] : r[5] + ' −' + r[6]];
+      }), []);
+  }
+  if (maxGw) {
+    var games = {}, order = [];
+    picks.forEach(function (r) {
+      if (Number(r[0]) !== season || Number(r[1]) !== maxGw) return;
+      var k = r[3] + '|' + r[5];
+      if (!games[k]) { games[k] = []; order.push(k); }
+      games[k].push(r);
+    });
+    el('pkBoard').innerHTML = order.map(function (k) {
+      var bySide = {};
+      games[k].forEach(function (r) { (bySide[r[4]] = bySide[r[4]] || []).push(r); });
+      return '<div class="card" style="margin-bottom:8px"><div style="font-weight:700">' + k.split('|')[0] +
+        ' <span style="font-weight:400;color:var(--muted);font-size:12px">(' + k.split('|')[1] + ')</span></div>' +
+        Object.keys(bySide).map(function (s2) {
+          var v = bySide[s2][0][6];
+          var mark = v === 'Win' ? '✅' : v === 'Push' ? '➖' : '❌';
+          return '<div style="margin-top:3px">' + mark + ' <b>' + s2 + '</b> — ' +
+            bySide[s2].map(function (r) { return r[2]; }).join(', ') + '</div>';
+        }).join('') + '</div>';
+    }).join('') || '<div class="note">No graded picks for week ' + maxGw + '.</div>';
+  }
+  if (list.length && wkList.length && el('pkGridTable')) {
+    table('pkGridTable', ['Owner'].concat(wkList.map(function (w) { return 'W' + w; })),
+      list.map(function (o) {
+        return ['<b>' + o + '</b>'].concat(wkList.map(function (w) { return byWk[o + '|' + w] || '—'; }));
+      }), wkList.map(function (w, i3) { return i3 + 1; }));
+  }
+}
+
 // ---------- positional scoring ----------
 var POSSC = null, POSSCLOADING = false, psChartObj = null;
 var PSSORT = { col: 'Overall', dir: 1 };
@@ -4744,6 +5197,16 @@ function fillDevySelects() {
   ['selDvYear', 'selDvOwner', 'selDvPos', 'selDvSchool', 'selDvStatus', 'selDvRosOwner'].forEach(function (id) {
     el(id).onchange = renderDevy;
   });
+  // deep link: /devy-draft?tab=history&school=Ohio%20State
+  if (CURPAGE === 'devydraft' && !fillDevySelects._qs) {
+    fillDevySelects._qs = 1;
+    var tb3 = routeGetQS('tab');
+    if (tb3 && ['picks', 'roster', 'history', 'records'].indexOf(tb3) > -1) { dvSub = tb3; showDvSub(); }
+    setSelIf_('selDvYear', routeGetQS('year'));
+    setSelIf_('selDvOwner', routeGetQS('owner'));
+    setSelIf_('selDvPos', routeGetQS('pos'));
+    setSelIf_('selDvSchool', routeGetQS('school'));
+  }
 }
 function renderDevy() {
   if (!SEC) return;
@@ -4754,6 +5217,14 @@ function renderDevy() {
     return;
   }
   el('devyMsg').textContent = '';
+  if (CURPAGE === 'devydraft') {
+    if (dvSub === 'history') {
+      routeSetQS({ tab: 'history', year: (el('selDvYear') || {}).value || '', owner: (el('selDvOwner') || {}).value || '',
+        pos: (el('selDvPos') || {}).value || '', school: (el('selDvSchool') || {}).value || '' });
+    } else {
+      routeSetQS({ tab: dvSub === 'picks' ? '' : dvSub, year: '', owner: '', pos: '', school: '' });
+    }
+  }
   var rows = SEC.devy.rows.filter(function (r) {
     var p = String(r[i.player] == null ? '' : r[i.player]).trim();
     return p !== '' && !/^forfeit/i.test(p);
@@ -5239,7 +5710,7 @@ var HONORS = [
   ['consol', 'Consolation titles', 'ConsolationChampion'],
   ['last', '12th place', 'LAST']
 ];
-var trSub = 'trophy', TRTABS = [['trophy', 'Trophy room'], ['frat', 'Fraternal orders']]
+var trSub = 'trophy', TRTABS = [['trophy', 'Trophy room'], ['timeline', 'Timeline'], ['frat', 'Fraternal orders']]
   .concat(HONORS.map(function (x) { return [x[0], x[1]]; }));
 function initTrTabs() {
   if (el('trPills').innerHTML) return;
@@ -5279,6 +5750,27 @@ function renderTrophy() {
         lp ? ownerTag(r[C(lp)], true) : ''];
     });
   table('trophyTable', ['Year', 'Champion', 'Runner-up', 'Third', 'Top seed', 'Scoring', 'Consolation', 'Last Place'], rows);
+
+  // champions timeline (photos appear when the Champions tab has a PhotoURL column)
+  var photoCol = null;
+  ['PhotoURL', 'Photo', 'ChampionPhoto'].forEach(function (c2) {
+    if (photoCol == null && C(c2) !== undefined) photoCol = c2;
+  });
+  el('trTimeline').innerHTML = DATA.champions.rows.slice()
+    .sort(function (a, b) { return b[C('Year')] - a[C('Year')]; })
+    .map(function (r) {
+      var y = r[C('Year')], ch = r[C('Champion')], ru = r[C('RunnerUp')], sc = r[C('ScoringTitle')];
+      var ph = photoCol != null ? r[C(photoCol)] : '';
+      return '<div style="display:flex;gap:12px;margin:0 0 10px;border-left:3px solid var(--line);padding-left:12px">' +
+        '<div style="font-weight:800;font-size:18px;color:var(--accent);min-width:52px;padding-top:12px">' + y + '</div>' +
+        '<div class="card" style="flex:1"><div style="display:flex;align-items:center;gap:10px">' +
+        faceOrInitials(ch, ph) +
+        '<div><div style="font-weight:800;font-size:16px">🏆 ' + ch + '</div>' +
+        '<div style="color:var(--muted);font-size:12.5px">def. ' + (ru || '—') +
+        (sc ? ' · 🎯 scoring title: ' + sc : '') + '</div></div></div></div></div>';
+    }).join('');
+  el('trTlNote').innerHTML = photoCol ? '' :
+    'Add a <b>PhotoURL</b> column to the Champions tab (one image link per row) and champion photos appear here automatically.';
 }
 function renderHonor(key) {
   var cfg = null;
