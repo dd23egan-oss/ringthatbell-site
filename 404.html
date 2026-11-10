@@ -222,7 +222,8 @@
   .twtab tbody tr:last-child td { border-bottom: none; }
   .twtab td.statlab { text-align: left; color: var(--muted); font-weight: 550; font-variant-numeric: normal; }
   .twtab td.better { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07) !important; }
-  td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); display: inline-block; }
+  td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
+  span.bestdiv { display: inline-block; }
   .odot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: baseline; }
   .rk { font-size: 10.5px; color: var(--muted); font-weight: 600; }
   .twtab .lgavg { color: var(--muted); font-weight: 500; font-size: 12.5px; }
@@ -1009,7 +1010,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2236';
+var RTB_BUILD = '1109.2243';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3794,22 +3795,22 @@ function renderDivisions() {
       if (kb === null) return -1;
       return (kb - ka) * ys.dir;
     });
-    function sth(label, c, extra) {
+    function sth(label, c, extra, num) {
       var arrow = ys.col === c ? (ys.dir === 1 ? ' ▼' : ' ▲') : '';
-      return '<th' + (extra || '') + '><span class="sortable" data-sc="' + c + '">' + label + arrow + '</span></th>';
+      return '<th' + (num ? ' class="num"' : '') + (extra || '') + '><span class="sortable" data-sc="' + c + '">' + label + arrow + '</span></th>';
     }
-    var h = '<thead><tr>' + sth('Year', 0, ' rowspan="2"') + sth('Best', 1, ' rowspan="2"') +
-      DIVS.map(function (d) { return '<th colspan="2" style="text-align:center">' + d + '</th>'; }).join('') +
+    var h = '<thead><tr>' + sth('Year', 0, ' rowspan="2"', true) + sth('Best', 1, ' rowspan="2"') +
+      DIVS.map(function (d) { return '<th colspan="2" style="text-align:center;border-left:2px solid #d6ded8">' + d + '</th>'; }).join('') +
       '</tr><tr>' +
-      DIVS.map(function (d, i) { return sth('Record', 2 + i * 2) + sth('Avg PF', 3 + i * 2); }).join('') +
+      DIVS.map(function (d, i) { return sth('Record', 2 + i * 2, ' style="border-left:2px solid #d6ded8"', true) + sth('Avg PF', 3 + i * 2, '', true); }).join('') +
       '</tr></thead><tbody>';
     rows.forEach(function (row) {
       h += '<tr><td class="num"><b>' + row.y + '</b></td><td><b>' + (row.best || '—') + '</b></td>' +
         DIVS.map(function (d) {
-          var b = row.by[d];
-          if (!b) return '<td>—</td><td>—</td>';
+          var b = row.by[d], brd = 'border-left:2px solid #e3e9e4';
+          if (!b) return '<td class="num" style="' + brd + '">—</td><td class="num">—</td>';
           var g = b.w + b.l, hot = d === row.best ? ' bestdiv' : '';
-          return '<td class="num' + hot + '">' + b.w + '-' + b.l + (b.champ ? ' 🏆' : '') + '</td>' +
+          return '<td class="num' + hot + '" style="' + brd + '">' + b.w + '-' + b.l + (b.champ ? ' 🏆' : '') + '</td>' +
             '<td class="num' + hot + '">' + (g ? n1(b.pf / g) : '—') + '</td>';
         }).join('') + '</tr>';
     });
