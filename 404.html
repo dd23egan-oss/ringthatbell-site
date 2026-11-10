@@ -221,6 +221,7 @@
   .twtab tbody tr:last-child td { border-bottom: none; }
   .twtab td.statlab { text-align: left; color: var(--muted); font-weight: 550; font-variant-numeric: normal; }
   .twtab td.better { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07) !important; }
+  td.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
   .odot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: baseline; }
   .rk { font-size: 10.5px; color: var(--muted); font-weight: 600; }
   .twtab .lgavg { color: var(--muted); font-weight: 500; font-size: 12.5px; }
@@ -531,6 +532,12 @@
     <div class="dsub" id="sesub-div">
       <div id="divStandings"></div>
     </div>
+  </div>
+
+  <div class="view" id="v-divisions">
+    <h1>Division history</h1>
+    <div class="pills" id="dhPills"></div>
+    <div id="dhBody"></div>
   </div>
 
   <div class="view" id="v-h2h">
@@ -1001,7 +1008,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2134';
+var RTB_BUILD = '1109.2139';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1051,7 +1058,7 @@ var SITE_BASE = /\.github\.io$/.test(location.hostname) ? '/ringthatbell-site' :
 var PAGE_SLUGS = { home: '', thisweek: 'this-week', current: 'current-season', budgets: 'draft-dollars',
   keepers: 'keeper-options', taxisquads: 'taxi-squads', devydraft: 'devy-draft', devy: 'devy-players',
   draft: 'draft-history', seasons: 'seasons', h2h: 'head-to-head', records: 'record-book',
-  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution',
+  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution', divisions: 'division-history',
   pickem: 'pickem', owners: 'owners' };
 function pageFromPath() {
   var p = location.pathname;
@@ -1080,13 +1087,13 @@ var DATA = null, AGGS = {}, SEC = null, SECLOADING = false, CONST = null, CONSTL
 var DI = null, DDI = null, KI = null, TDI = null;
 var lastDraft = null, lastKeep = null, POSRANK = {};
 var PAGES = [['home','Home'],['current','Current season standings'],['seasons','Seasons'],['h2h','Head to head'],['records','Records'],['topplayers','Top players'],['lineups','Historic starting lineups and scoring by positions'],
-             ['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper options'],['devydraft','Devy draft'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"],['pickem','Pick’em'],['owners','Owner profiles']];
+             ['divisions','Division history'],['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper options'],['devydraft','Devy draft'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"],['pickem','Pick’em'],['owners','Owner profiles']];
 var RULES_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdtN5Oopj3cklw4TIE_nhuLOmkv2KLOzf6MyP__7paD9rSoLQ/viewform';
 // Grouped navigation: four top-level entries instead of thirteen.
 var NAVGROUPS = [
   { page: 'home', label: 'Home' },
   { label: 'This season', items: ['thisweek', 'current', 'pickem', 'budgets', 'keepers', 'taxisquads', 'devydraft', 'rules'] },
-  { label: 'League history', items: ['owners', 'draft', 'seasons', 'records', 'h2h', 'topplayers', 'lineups', 'trophy'] },
+  { label: 'League history', items: ['owners', 'draft', 'seasons', 'divisions', 'records', 'h2h', 'topplayers', 'lineups', 'trophy'] },
   { page: 'constitution', label: 'Constitution' }
 ];
 function pageLabel(id) {
@@ -1286,6 +1293,7 @@ function show(page) {
     w.querySelector('.navtop').classList.toggle('active', owns);
   });
   if (page === 'records') ensureAggs();
+  if (page === 'divisions') renderDivisions();
   if (page === 'thisweek') ensureThisWeek();
   if (page === 'pickem') ensurePickem();
   if (page === 'owners') {
@@ -3666,6 +3674,112 @@ function curRowBits(o, c) {
     pf: s.pf, streak: streak,
     last10: l10.length ? '(' + l10w + '-' + (l10.length - l10w) + ')' : ''
   };
+}
+// ---------- Division history page ----------
+var dhSub = 'cur';
+var DHTABS = [['cur', 'Premier · Second · Third (2016–now)'], ['old', 'East · Central · West (2014–15)']];
+function initDhTabs() {
+  if (!initDhTabs._qs) {
+    initDhTabs._qs = 1;
+    var tb = routeGetQS('tab');
+    if (tb && DHTABS.some(function (t) { return t[0] === tb; })) dhSub = tb;
+  }
+  if (el('dhPills').innerHTML) return;
+  el('dhPills').innerHTML = DHTABS.map(function (t) {
+    return '<button class="pill" data-sub="' + t[0] + '">' + t[1] + '</button>';
+  }).join('');
+  el('dhPills').querySelectorAll('button').forEach(function (b) {
+    b.onclick = function () {
+      dhSub = b.dataset.sub; renderDivisions();
+      if (CURPAGE === 'divisions') routeSetQS({ tab: dhSub === 'cur' ? '' : dhSub });
+    };
+  });
+}
+function renderDivisions() {
+  if (!DATA || !DATA.seasons) return;
+  initDhTabs();
+  el('dhPills').querySelectorAll('button').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.sub === dhSub);
+  });
+  var DIVS = dhSub === 'cur' ? ['Premier', 'Second', 'Third'] : ['East', 'Central', 'West'];
+  var agg = {}, byYear = {}, champYears = {}, titleYears = {};
+  DIVS.forEach(function (d) {
+    agg[d] = { ts: 0, w: 0, l: 0, pf: 0, ch: 0, app: 0, po: 0, s1: 0, sco: 0 };
+    champYears[d] = []; titleYears[d] = [];
+  });
+  DATA.seasons.rows.forEach(function (r) {
+    var d = String(r[S('Division')] == null ? '' : r[S('Division')]).trim();
+    if (DIVS.indexOf(d) === -1) return;
+    var y = Number(r[S('Year')]), o = String(r[S('Owner')]);
+    var w = Number(r[S('Wins')]) || 0, l = Number(r[S('Losses')]) || 0, pf = Number(r[S('PointsFor')]) || 0;
+    var a = agg[d];
+    a.ts++; a.w += w; a.l += l; a.pf += pf;
+    if (r[S('LeagueChampion')] === true) { a.ch++; champYears[d].push(y + ' ' + o); }
+    if (r[S('LeagueChampion')] === true || r[S('RunnerUp')] === true) {
+      a.app++;
+      if (r[S('RunnerUp')] === true) titleYears[d].push(y + ' ' + o + ' (lost)');
+    }
+    if (r[S('PlayoffAppearance')] === true) a.po++;
+    if (Number(r[S('Seed')]) === 1) a.s1++;
+    if (r[S('ScoringTitle')] === true) a.sco++;
+    var by = byYear[y] = byYear[y] || {};
+    var bd = by[d] = by[d] || { w: 0, l: 0, pf: 0, champ: null };
+    bd.w += w; bd.l += l; bd.pf += pf;
+    if (r[S('LeagueChampion')] === true) bd.champ = o;
+  });
+  var html = '';
+  if (dhSub === 'cur') {
+    html += '<div class="note">The relegation era: since 2016 the league has run Premier, Second and Third divisions, with promotion for division winners and demotion for last place. The Premier division carries two playoff auto bids, the Second division one.</div>';
+  } else {
+    html += '<div class="note">The geographic era: 2014–15 used East, Central and West divisions before the league switched to the relegation format.</div>';
+  }
+  // all-time table
+  html += '<h2>All-time by division</h2><div class="twrap"><table class="fit"><thead><tr>' +
+    '<th>Division</th><th>Team-seasons</th><th>W</th><th>L</th><th>Win %</th><th>Avg PF / game</th><th>Avg PF / season</th>' +
+    '</tr></thead><tbody>' +
+    DIVS.map(function (d) {
+      var a = agg[d], g = a.w + a.l;
+      return '<tr><td><b>' + d + '</b></td><td class="num">' + a.ts + '</td><td class="num">' + a.w +
+        '</td><td class="num">' + a.l + '</td><td class="num">' + pct(a.w, a.l) +
+        '</td><td class="num">' + (g ? n1(a.pf / g) : '—') +
+        '</td><td class="num">' + (a.ts ? n1(a.pf / a.ts) : '—') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  // honors table
+  html += '<h2>Hardware by division</h2><div class="twrap"><table class="fit"><thead><tr>' +
+    '<th>Division</th><th>Championships</th><th>Title game trips</th><th>Playoff berths</th><th>1 seeds</th><th>Scoring titles</th>' +
+    '</tr></thead><tbody>' +
+    DIVS.map(function (d) {
+      var a = agg[d];
+      return '<tr><td><b>' + d + '</b></td><td class="num">' + a.ch + '</td><td class="num">' + a.app +
+        '</td><td class="num">' + a.po + '</td><td class="num">' + a.s1 + '</td><td class="num">' + a.sco + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  var chNotes = DIVS.filter(function (d) { return champYears[d].length; }).map(function (d) {
+    return '<b>' + d + ':</b> ' + champYears[d].join(', ');
+  });
+  if (chNotes.length) html += '<div class="note">Champions by division — ' + chNotes.join(' · ') + '</div>';
+  if (dhSub === 'cur') html += '<div class="note">The Premier division gets two auto bids and the Second division one, so playoff berths lean structural — the year-by-year table below is the fairer strength test.</div>';
+  // year by year
+  html += '<h2>Year by year: best division</h2><div class="twrap"><table class="fit"><thead><tr>' +
+    '<th>Year</th>' + DIVS.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '<th>Best division</th>' +
+    '</tr></thead><tbody>';
+  var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; });
+  years.forEach(function (y) {
+    var by = byYear[y], best = null, bestKey = [-1, -1];
+    DIVS.forEach(function (d) {
+      var b = by[d]; if (!b) return;
+      var g = b.w + b.l, k = [g ? b.w / g : 0, g ? b.pf / g : 0];
+      if (k[0] > bestKey[0] || (k[0] === bestKey[0] && k[1] > bestKey[1])) { bestKey = k; best = d; }
+    });
+    html += '<tr><td><b>' + y + '</b></td>' + DIVS.map(function (d) {
+      var b = by[d]; if (!b) return '<td>—</td>';
+      var g = b.w + b.l;
+      return '<td class="num' + (d === best ? ' bestdiv' : '') + '">' + b.w + '-' + b.l +
+        ' · ' + (g ? n1(b.pf / g) : '—') + (b.champ ? ' 🏆' : '') + '</td>';
+    }).join('') + '<td><b>' + (best || '—') + '</b></td></tr>';
+  });
+  html += '</tbody></table></div>' +
+    '<div class="note">Each division cell shows record · average points per game. Division games cancel out inside a division (someone wins, someone loses), so the gaps between divisions come from cross-division matchups. 🏆 marks the league champion’s division. “Best division” = best combined win %, points per game as the tiebreaker. Regular-season games only, through ' + (years.length ? years[0] : '') + '.</div>';
+  el('dhBody').innerHTML = html;
 }
 var curSub = 'standings';
 var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['scenarios', 'Playoff scenarios'],
