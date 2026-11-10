@@ -1000,7 +1000,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2111';
+var RTB_BUILD = '1109.2117';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3846,7 +3846,6 @@ function renderCurrent() {
         '<td>' + c.div[o] + '</td><td class="num">' + b.w + '</td><td class="num">' + b.l + '</td><td class="num">' + b.avgPF + '</td></tr>';
     });
     html += '</tbody></table></div>';
-    html += '<div class="note">* 6th playoff seed goes to the remaining team with the most points for. ' + c.notes.join(' ') + '</div>';
 
     // 6th seed race
     var chasing = c.owners.filter(function (o) { return c.qualified.indexOf(o) === -1; })
@@ -3907,6 +3906,7 @@ function renderCurrent() {
           '<div class="note">Eliminations are mathematical, with ties counted against (a shade conservative). Nobody is ever fully dead \u2014 the 6 seed goes to points for \u2014 but \u201cout of it, within reason\u201d means trailing that race by more than 40 points per remaining week.</div>';
       }
     }
+    html += '<div class="note" style="margin-top:12px">* 6th playoff seed goes to the remaining team with the most points for. ' + c.notes.join(' ') + '</div>';
   } else {
     html += '<div class="note">Seeding appears once the CurrentDivisions tab lists Premier and Second division teams.</div>';
   }
