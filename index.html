@@ -916,11 +916,14 @@
     <div class="dsub" id="dvsub-records">
       <h2>Best devy picks</h2>
       <div class="twrap"><table id="dvRecBestTable"></table></div>
-      <div class="note">Ranked by what each pick produced while retained: seasons held (devy, taxi, keeper or franchise) before going back into the auction, and top-12 finishes at their position in those seasons.</div>
+      <div class="note" id="dvRecBestMore"></div>
+      <div class="note">Ranked by what each pick produced while retained &mdash; the devy season plus every taxi, keeper or franchise season after it. Once a player goes back through the auction, their clock stops.</div>
       <h2>Picks by school</h2>
       <div class="twrap"><table id="dvRecSchoolTable"></table></div>
+      <div class="note" id="dvRecSchoolMore"></div>
       <h2>Picks by position</h2>
       <div class="twrap"><table id="dvRecPosTable"></table></div>
+      <div class="note" id="dvRecPosMore"></div>
       <h2>Devy success by owner</h2>
       <div class="twrap"><table id="dvRecOwnerTable"></table></div>
       <h2>How devy picks fared in the NFL draft</h2>
@@ -1078,7 +1081,7 @@ var RULES_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdtN5Oopj3cklw4TIE_nhu
 var NAVGROUPS = [
   { page: 'home', label: 'Home' },
   { label: 'This season', items: ['thisweek', 'current', 'pickem', 'budgets', 'keepers', 'taxisquads', 'devydraft', 'rules'] },
-  { label: 'League history', items: ['owners', 'seasons', 'records', 'h2h', 'topplayers', 'lineups', 'draft', 'trophy'] },
+  { label: 'League history', items: ['owners', 'draft', 'seasons', 'records', 'h2h', 'topplayers', 'lineups', 'trophy'] },
   { page: 'constitution', label: 'Constitution' }
 ];
 function pageLabel(id) {
@@ -1951,7 +1954,7 @@ function ensureAggs() {
 function renderRecords() {
   el('selRec').onchange = function () { ensureAggs(); renderRecords(); };
   var v = el('selRec').value, note = '';
-  var filterable = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin'].indexOf(v) > -1;
+  var filterable = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'allplayyear', 'lossseason'].indexOf(v) > -1;
   el('recFilters').style.display = filterable ? 'flex' : 'none';
   var fy = el('selRYear').value, fo = el('selROwner').value, fs = el('selRSet').value;
   function setMatch(r) {
@@ -2137,14 +2140,17 @@ function renderRecords() {
         var tot = a3.apw + a3.apl, g2 = a3.w + a3.l;
         var exp = tot ? a3.apw / tot * g2 : 0;
         return { o: p2[0], y: Number(p2[1]), a: a3, pctv: tot ? a3.apw / tot : 0, luck: a3.w - exp };
-      }).filter(function (x) { return x.a.w + x.a.l >= 8; })
-        .sort(function (x, yv) { return yv.pctv - x.pctv; });
+      }).filter(function (x) {
+        return x.a.w + x.a.l >= 8 &&
+          (fy === 'All years' || x.y === Number(fy)) &&
+          (fo === 'All owners' || x.o === fo);
+      }).sort(function (x, yv) { return yv.pctv - x.pctv; });
       sortableTable('recTable', ['#', 'Owner', 'Year', 'All-play W-L', 'All-play %', 'Actual', 'Luck'],
         listY.slice(0, 20).map(function (x, i2) {
           return [i2 + 1, '<b>' + x.o + '</b>', x.y, apfmt(x.a.apw) + '-' + apfmt(x.a.apl),
             x.pctv.toFixed(3).replace(/^0/, ''), x.a.w + '-' + x.a.l, luckHtml(x.luck)];
         }), [0, 2, 4, 6], [0]);
-      note = 'The 20 most dominant all-play seasons (minimum 8 games played).';
+      note = 'The most dominant all-play seasons (top 20 shown, minimum 8 games played). The Games filter does not apply — all-play is regular season by definition.';
     }
   } else if (v === 'postreaks') {
     var byOw = {};
@@ -2181,8 +2187,11 @@ function renderRecords() {
       }), [0, 1, 4, 6]);
     note = v === 'bestloss' ? 'The most points ever scored in a loss — the heartbreak list.' : 'The fewest points that still won — the grand-theft list.';
   } else if (v === 'lossseason') {
-    var ls = DATA.seasons.rows.filter(function (r) { return r[S('Wins')] < r[S('Losses')]; })
-      .sort(function (a, b) { return b[S('PointsFor')] - a[S('PointsFor')]; }).slice(0, 20);
+    var ls = DATA.seasons.rows.filter(function (r) {
+      return r[S('Wins')] < r[S('Losses')] &&
+        (fy === 'All years' || Number(r[S('Year')]) === Number(fy)) &&
+        (fo === 'All owners' || r[S('Owner')] === fo);
+    }).sort(function (a, b) { return b[S('PointsFor')] - a[S('PointsFor')]; }).slice(0, 20);
     table('recTable', ['#', 'Owner', 'Year', 'W-L', 'PF', 'PF / game'],
       ls.map(function (r, i2) {
         var g2 = r[S('Wins')] + r[S('Losses')];
@@ -5439,7 +5448,7 @@ function dvHeld(v) {
   var low = String(v == null ? '' : v).toLowerCase();
   return low.indexOf('college') > -1 || low === 'declared';
 }
-var DDTABS = [['picks', 'Upcoming picks'], ['roster', 'In college'], ['history', 'Pick history'], ['records', 'Records']];
+var DDTABS = [['picks', 'Upcoming picks'], ['roster', 'Active devy players'], ['history', 'Pick history'], ['records', 'Report card']];
 function initDvTabs() {
   if (el('ddPills').innerHTML) return;
   el('ddPills').innerHTML = DDTABS.map(function (t) {
@@ -5674,7 +5683,8 @@ function renderDevy() {
         (h2[nm] = h2[nm] || []).push({
           y: Number(r[dIdx.Year]),
           cat: String(r[dIdx.Category] == null ? '' : r[dIdx.Category]).trim().toLowerCase(),
-          rank: Number(r[dIdx.SeasonPtsRankPosition])
+          rank: Number(r[dIdx.SeasonPtsRankPosition]),
+          pts: Number(r[dIdx.Points]) || 0
         });
       });
       Object.keys(h2).forEach(function (k) { h2[k].sort(function (a, b) { return a.y - b.y; }); });
@@ -5686,77 +5696,106 @@ function renderDevy() {
       var key = dvNrm(name);
       if (careerCache[key]) return careerCache[key];
       var rowsH = renderDevy._hist[key] || [];
-      var yrs = 0, tops = 0;
+      var yrs = 0, tops = 0, tops24 = 0, pts = 0;
       for (var q = 0; q < rowsH.length; q++) {
         if (!RETCAT[rowsH[q].cat]) break;   // first auction appearance ends the run
         yrs++;
+        pts += rowsH[q].pts;
         if (rowsH[q].rank >= 1 && rowsH[q].rank <= 12) tops++;
+        if (rowsH[q].rank >= 1 && rowsH[q].rank <= 24) tops24++;
       }
-      return (careerCache[key] = { years: yrs, tops: tops, found: rowsH.length > 0 });
+      return (careerCache[key] = { years: yrs, tops: tops, tops24: tops24, pts: pts, found: rowsH.length > 0 });
     }
 
-    // best devy picks ever
+    // expand/collapse state for the long tables
+    renderDevy._exp = renderDevy._exp || {};
+    function moreBtn(id, key, total, shownN) {
+      var elM = el(id);
+      if (!elM) return;
+      if (total <= shownN && !renderDevy._exp[key]) { elM.innerHTML = ''; return; }
+      elM.innerHTML = '<button class="pill" id="' + id + 'Btn">' +
+        (renderDevy._exp[key] ? 'Show top 10 only' : 'Show all ' + total) + '</button>';
+      el(id + 'Btn').onclick = function () {
+        renderDevy._exp[key] = !renderDevy._exp[key];
+        renderDevy();
+      };
+    }
+
+    // best devy picks ever (top 10, expandable)
     var best = rows.map(function (r) { return { r: r, c: careerOf(r[i.player]) }; })
       .filter(function (x) { return x.c.years > 0 || String(x.r[i.status]).toLowerCase() === 'kept'; });
     best.sort(function (a, b) {
-      return b.c.tops - a.c.tops || b.c.years - a.c.years ||
+      return b.c.tops - a.c.tops || b.c.years - a.c.years || b.c.pts - a.c.pts ||
         Number(a.r[i.year] || 0) - Number(b.r[i.year] || 0);
     });
+    var bestShown = renderDevy._exp.best ? best : best.slice(0, 10);
     sortableTable('dvRecBestTable',
-      ['RK', 'Player', 'School', 'Pos', 'Devy draft', 'Owner', 'Seasons retained', 'Top-12 seasons'],
-      best.slice(0, 30).map(function (x, n2) {
+      ['RK', 'Player', 'School', 'Pos', 'Devy draft', 'Owner', 'Seasons retained', 'Top-12 seasons', 'Points while kept'],
+      bestShown.map(function (x, n2) {
         var r = x.r;
         return [n2 + 1, '<b>' + r[i.player] + '</b>', r[i.school] || '', r[i.pos] || '',
-          r[i.year] || '', String(r[i.cur]).trim(), x.c.years, x.c.tops];
-      }), [0, 4, 6, 7], [], 7, 1);
+          r[i.year] || '', String(r[i.cur]).trim(), x.c.years, x.c.tops, n1(x.c.pts)];
+      }), [0, 4, 6, 7, 8], [], 7, 1);
+    moreBtn('dvRecBestMore', 'best', best.length, 10);
 
-    // aggregates by school and by position
-    function dvAgg(keyFn, label, tableId) {
+    // aggregates by school and by position; a "hit" = kept for multiple seasons
+    // (devy year followed by at least one taxi / keeper / franchise year)
+    function dvAgg(keyFn, label, tableId, moreId, expKey) {
       var m2 = {};
       rows.forEach(function (r) {
         var k = String(keyFn(r) == null ? '' : keyFn(r)).trim() || '—';
-        var e2 = m2[k] = m2[k] || { n: 0, kept: 0, yrs: 0, tops: 0 };
+        var e2 = m2[k] = m2[k] || { n: 0, kept: 0, multi: 0, yrs: 0, tops: 0 };
         e2.n++;
         if (String(r[i.status]).toLowerCase() === 'kept') e2.kept++;
         var c2 = careerOf(r[i.player]);
         e2.yrs += c2.years; e2.tops += c2.tops;
+        if (c2.years >= 2) e2.multi++;
       });
+      var keys = Object.keys(m2).sort(function (a, b) {
+        return m2[b].multi - m2[a].multi || m2[b].n - m2[a].n || (a < b ? -1 : 1);
+      });
+      var shown = renderDevy._exp[expKey] ? keys : keys.slice(0, 10);
       sortableTable(tableId,
-        [label, 'Picks', 'Kept', 'Keep rate', 'Seasons retained', 'Top-12 seasons'],
-        Object.keys(m2).sort(function (a, b) { return m2[b].n - m2[a].n || (a < b ? -1 : 1); })
-          .map(function (k) {
-            var e3 = m2[k];
-            return ['<b>' + k + '</b>', e3.n, e3.kept,
-              e3.n ? Math.round(e3.kept / e3.n * 1000) / 10 + '%' : '', e3.yrs, e3.tops];
-          }), [1, 2, 3, 4, 5], [], 1, 1);
+        [label, 'Picks', 'Kept', 'Kept 2+ seasons', 'Hit rate', 'Seasons retained', 'Top-12 seasons'],
+        shown.map(function (k) {
+          var e3 = m2[k];
+          return ['<b>' + k + '</b>', e3.n, e3.kept, e3.multi,
+            e3.n ? Math.round(e3.multi / e3.n * 1000) / 10 + '%' : '', e3.yrs, e3.tops];
+        }), [1, 2, 3, 4, 5, 6], [], 3, 1);
+      moreBtn(moreId, expKey, keys.length, 10);
     }
-    dvAgg(function (r) { return r[i.school]; }, 'School', 'dvRecSchoolTable');
-    dvAgg(function (r) { return r[i.pos]; }, 'Position', 'dvRecPosTable');
+    dvAgg(function (r) { return r[i.school]; }, 'School', 'dvRecSchoolTable', 'dvRecSchoolMore', 'school');
+    dvAgg(function (r) { return r[i.pos]; }, 'Position', 'dvRecPosTable', 'dvRecPosMore', 'pos');
 
-    // by owner (current owner made the keep-or-not call)
+    // by owner (current owner made the keep-or-not call; Tom and Tom* are the same guy)
     var per = {};
     rows.forEach(function (r) {
-      var o = String(r[i.cur]).trim();
+      var o = String(r[i.cur] == null ? '' : r[i.cur]).trim().replace(/\*+$/, '').trim();
       if (!o || /^forfeit/i.test(o)) return;
-      if (!per[o]) per[o] = { picks: 0, kept: 0 };
+      if (!per[o]) per[o] = { picks: 0, kept: 0, multi: 0 };
       per[o].picks++;
       if (String(r[i.status]).toLowerCase() === 'kept') per[o].kept++;
+      if (careerOf(r[i.player]).years >= 2) per[o].multi++;
     });
     var rowsO = Object.keys(per).map(function (o) {
       var a = per[o];
-      return ['<b>' + o + '</b>', a.picks, a.kept,
-        a.picks ? Math.round(a.kept / a.picks * 1000) / 10 + '%' : ''];
+      return ['<b>' + o + '</b>', a.picks, a.kept, a.multi,
+        a.picks ? Math.round(a.multi / a.picks * 1000) / 10 + '%' : ''];
     });
-    sortableTable('dvRecOwnerTable', ['Owner', 'Devy picks held', 'Kept', 'Hit rate'],
-      rowsO, [1, 2, 3], [], 1, 1);
+    sortableTable('dvRecOwnerTable', ['Owner', 'Devy picks held', 'Kept', 'Kept 2+ seasons', 'Hit rate'],
+      rowsO, [1, 2, 3, 4], [], 3, 1);
 
     var byRd = {};
     rows.forEach(function (r) {
       var rd = String(r[i.rd] == null ? '' : r[i.rd]).trim();
       if (!rd) return;
-      if (!byRd[rd]) byRd[rd] = { n: 0, kept: 0 };
+      if (!byRd[rd]) byRd[rd] = { n: 0, kept: 0, multi: 0, p12: 0, p24: 0 };
       byRd[rd].n++;
       if (String(r[i.status]).toLowerCase() === 'kept') byRd[rd].kept++;
+      var c4 = careerOf(r[i.player]);
+      if (c4.years >= 2) byRd[rd].multi++;
+      if (c4.tops > 0) byRd[rd].p12++;
+      if (c4.tops24 > 0) byRd[rd].p24++;
     });
     var rdOrder = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', 'UDFA', 'Undrafted'];
     var rowsR = Object.keys(byRd).sort(function (a, b) {
@@ -5764,11 +5803,14 @@ function renderDevy() {
       return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     }).map(function (rd) {
       var a = byRd[rd];
-      return [rd, a.n, a.kept, a.n ? Math.round(a.kept / a.n * 1000) / 10 + '%' : ''];
+      return [rd, a.n, a.kept, a.multi, a.p12, a.p24];
     });
-    sortableTable('dvRecRoundTable', ['NFL draft round', 'Devy picks', 'Kept in our league', 'Keep rate'],
-      rowsR, [1, 2, 3], [0], -1, 1);
-    el('dvRecNote').textContent = 'Picks are credited to whoever held them at the devy draft \u2014 the owner who made the pick and the keep decision. Hit rate = share of their picks that were kept.';
+    sortableTable('dvRecRoundTable',
+      ['NFL draft round', 'Devy picks', 'Kept', 'Kept 2+ seasons', 'Top-12 players while kept', 'Top-24 players while kept'],
+      rowsR, [1, 2, 3, 4, 5], [0], -1, 1);
+    el('dvRecNote').textContent = 'Picks are credited to whoever held them at the devy draft \u2014 the owner who made the pick and the keep decision. ' +
+      '\u201cKept 2+ seasons\u201d (the hit-rate basis everywhere above) means the devy season was followed by at least one taxi, keeper or franchise season. ' +
+      'Top-12 / Top-24 count players who hit that positional finish at least once while retained.';
   }
 }
 
@@ -6012,14 +6054,14 @@ function initTrTabs() {
       trSub = b.dataset.sub;
       showTrSub();
       if (trSub === 'frat') renderFraternal();
-      else if (trSub !== 'trophy') renderHonor(trSub);
+      else if (trSub !== 'trophy' && trSub !== 'timeline') renderHonor(trSub);
     };
   });
   showTrSub();
 }
 function showTrSub() {
-  var pane = (trSub === 'trophy' || trSub === 'frat') ? trSub : 'honor';
-  ['trophy', 'frat', 'honor'].forEach(function (p) {
+  var pane = (trSub === 'trophy' || trSub === 'frat' || trSub === 'timeline') ? trSub : 'honor';
+  ['trophy', 'frat', 'honor', 'timeline'].forEach(function (p) {
     el('trsub-' + p).classList.toggle('on', p === pane);
   });
   el('trPills').querySelectorAll('button').forEach(function (b) {
