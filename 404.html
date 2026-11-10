@@ -514,6 +514,7 @@
     <div class="note" id="curMsg"></div>
     <div class="dsub" id="csub-standings"><div id="curStandings"></div></div>
     <div class="dsub" id="csub-playoffs"><div id="curPlayoffs"></div></div>
+    <div class="dsub" id="csub-scenarios"><div id="curScenarios"></div></div>
     <div class="dsub" id="csub-divvdiv"><div id="curDivVDiv"></div></div>
     <div class="dsub" id="csub-pf"><div id="curPF"></div></div>
     <div class="dsub" id="csub-pa"><div id="curPA"></div></div>
@@ -1000,7 +1001,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2117';
+var RTB_BUILD = '1109.2123';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3665,17 +3666,20 @@ function curRowBits(o, c) {
   };
 }
 var curSub = 'standings';
-var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['divvdiv', 'Division vs division'],
+var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['scenarios', 'Playoff scenarios'],
+               ['divvdiv', 'Division vs division'],
                ['pf', 'Points for'], ['pa', 'Points against'], ['honors', 'Weekly honors']];
+var SCEN_OK = false;   // the scenarios tab appears from week 12
 function initCurTabs() {
+  var tabs = CURTABS.filter(function (t) { return t[0] !== 'scenarios' || SCEN_OK; });
   // deep link: /current-season?tab=playoffs
   if (!initCurTabs._qs) {
     initCurTabs._qs = 1;
     var tb = routeGetQS('tab');
-    if (tb && CURTABS.some(function (t) { return t[0] === tb; })) curSub = tb;
+    if (tb && tabs.some(function (t) { return t[0] === tb; })) curSub = tb;
   }
   if (el('curPills').innerHTML) return;
-  el('curPills').innerHTML = CURTABS.map(function (t) {
+  el('curPills').innerHTML = tabs.map(function (t) {
     return '<button class="pill" data-sub="' + t[0] + '">' + t[1] + '</button>';
   }).join('');
   el('curPills').querySelectorAll('button').forEach(function (b) {
@@ -3703,7 +3707,7 @@ function curPlayoffMath_(c) {
     maxWv[o] = c.st[o].w + remain[o];
   });
   function rivals(o) { return (c.divRanks[c.div[o]] || []).filter(function (x) { return x !== o; }); }
-  function magic(o) {
+  function magicRaw(o) {
     var oth = owners.filter(function (x) { return x !== o; }).map(function (x) { return maxWv[x]; })
       .sort(function (a, b) { return b - a; });
     var m = (oth[4] != null ? oth[4] : -1) + 1 - c.st[o].w;
@@ -3714,6 +3718,10 @@ function curPlayoffMath_(c) {
     } else if (d === 'Second' && rv.length) {
       m = Math.min(m, Math.max.apply(null, rv.map(function (x) { return maxWv[x]; })) + 1 - c.st[o].w);
     }
+    return Math.max(0, m);
+  }
+  function magic(o) {
+    var m = magicRaw(o);
     if (m <= 0) return 0;
     return m > remain[o] ? null : m;
   }
@@ -3730,12 +3738,13 @@ function curPlayoffMath_(c) {
   for (var so in c.seeds) if (c.seeds[so] === 6) sixOwner = so;
   if (sixOwner) bench = c.st[sixOwner].pf;
   else owners.forEach(function (o) { if ((c.auto || []).indexOf(o) === -1) bench = Math.max(bench, c.st[o].pf); });
-  return { magic: magic, elim: elim, remain: remain, bench: bench };
+  return { magic: magic, magicRaw: magicRaw, elim: elim, remain: remain, bench: bench };
 }
 function renderCurrent() {
   if (!CUR) return;
-  initCurTabs();
   var c = curCompute(null);
+  SCEN_OK = c.played >= 11;   // "week 12" = eleven games in the books
+  initCurTabs();
   if (!c.played) {
     el('curStandings').innerHTML = '<div class="card">No games entered yet. Add each week\u2019s matchups to the CurrentSeason tab and this page fills in automatically.</div>'; el('curPlayoffs').innerHTML = '';
     ['curDivVDiv', 'curPF', 'curPA', 'curHonors'].forEach(function (id) { el(id).innerHTML = ''; });
@@ -3915,6 +3924,58 @@ function renderCurrent() {
   el('curStandings').innerHTML = curParts[0];
   el('curPlayoffs').innerHTML = curParts[1] || '<div class="note">Playoff picture appears once games are entered.</div>';
   html = '';
+
+  // playoff scenarios (tab appears from week 12)
+  if (SCEN_OK) {
+    var sHtml = '';
+    var sixO = null;
+    for (var sk in c.seeds) if (c.seeds[sk] === 6) sixO = sk;
+    var clin = [], aliveS = [], deadS = [];
+    c.owners.forEach(function (o) {
+      var m6 = PM.magic(o), raw6 = PM.magicRaw(o), st6 = PM.elim(o);
+      var deficit6 = PM.bench - c.st[o].pf;
+      var beyond6 = st6.autoDead && (PM.remain[o] === 0 ? deficit6 > 0 : deficit6 > 40 * PM.remain[o]);
+      var rec6 = c.st[o].w + '-' + c.st[o].l;
+      if (m6 === 0) clin.push({ o: o, rec: rec6 });
+      else if (beyond6) deadS.push({ o: o, rec: rec6, deficit: deficit6 });
+      else aliveS.push({ o: o, rec: rec6, m: m6, raw: raw6, dead: st6.autoDead, deficit: deficit6 });
+    });
+    sHtml += '<h2 style="font-size:15px">✅ Clinched</h2>';
+    sHtml += clin.length ? '<ul>' + clin.map(function (x) {
+      return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') has locked a playoff berth.</li>';
+    }).join('') + '</ul>' : '<div class="note">Nobody has clinched yet.</div>';
+    sHtml += '<h2 style="font-size:15px">🎯 What it takes</h2>';
+    aliveS.sort(function (a, b) {
+      return (a.m == null ? 98 : a.m) - (b.m == null ? 98 : b.m) ||
+        c.st[b.o].w - c.st[a.o].w || c.st[b.o].pf - c.st[a.o].pf;
+    });
+    sHtml += aliveS.length ? '<ul>' + aliveS.map(function (x) {
+      var line;
+      if (x.m != null) {
+        line = x.m === PM.remain[x.o]
+          ? 'must <b>win out</b> — do that and nobody can keep them out.'
+          : 'clinches with <b>' + x.m + ' more win' + (x.m === 1 ? '' : 's') + '</b>, no help needed.';
+      } else if (!x.dead) {
+        var help = x.raw - PM.remain[x.o];
+        line = 'can’t clinch on their own wins alone: needs to <b>win out</b> plus <b>' + help +
+          ' slip-up' + (help === 1 ? '' : 's') + '</b> from the teams ahead.';
+      } else {
+        line = 'auto bids are out of reach — the road is the <b>points-for 6 seed</b>: ' +
+          (x.deficit <= 0 ? '<b>currently holding it</b>' :
+            n1(x.deficit) + ' points behind ' + (sixO || 'the 6-seed holder')) +
+          ', ' + PM.remain[x.o] + ' week' + (PM.remain[x.o] === 1 ? '' : 's') + ' to go.';
+      }
+      return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + '): ' + line + '</li>';
+    }).join('') + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
+    sHtml += '<h2 style="font-size:15px">⚰️ Out of it, within reason</h2>';
+    sHtml += deadS.length ? '<ul>' + deadS.map(function (x) {
+      return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') — no auto-bid path, and the points-for seed sits ' + n1(x.deficit) + ' away.</li>';
+    }).join('') + '</ul>' : '<div class="note">Nobody is fully buried — the points-for seed keeps everyone mathematically alive.</div>';
+    sHtml += '<div class="note">Deterministic math only: wins and losses, ties counted against (so clinches can arrive a touch sooner than shown). “Slip-ups” means any combination of losses by the teams ahead in the race.</div>';
+    el('curScenarios').innerHTML = sHtml;
+  } else {
+    el('curScenarios').innerHTML = '<div class="note">Playoff scenarios appear in week 12.</div>';
+  }
 
   // division vs division
   var dv = {};
