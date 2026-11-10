@@ -883,6 +883,9 @@
     <div class="note" id="devyDMsg"></div>
     <div class="note" id="devyMsg"></div>
     <div class="dsub" id="dvsub-picks">
+      <div class="controls">
+        <label for="selDvPickOwner">Owner</label><select id="selDvPickOwner"><option>All owners</option></select>
+      </div>
       <div class="budgetDuo" id="dvPicksDuo"></div>
       <div class="note" id="dvPicksNote"></div>
     </div>
@@ -5416,7 +5419,8 @@ function fillDevySelects() {
   el('selDvStatus').innerHTML = '<option value="all">All statuses</option>' +
     ['Kept', 'Not kept', 'Still in college', 'Declared', 'Undrafted'].map(function (s) { return '<option>' + s + '</option>'; }).join('');
   el('selDvRosOwner').innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
-  ['selDvYear', 'selDvOwner', 'selDvPos', 'selDvSchool', 'selDvStatus', 'selDvRosOwner'].forEach(function (id) {
+  el('selDvPickOwner').innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+  ['selDvYear', 'selDvOwner', 'selDvPos', 'selDvSchool', 'selDvStatus', 'selDvRosOwner', 'selDvPickOwner'].forEach(function (id) {
     el(id).onchange = renderDevy;
   });
   // deep link: /devy-draft?tab=history&school=Ohio%20State
@@ -5428,6 +5432,7 @@ function fillDevySelects() {
     setSelIf_('selDvOwner', routeGetQS('owner'));
     setSelIf_('selDvPos', routeGetQS('pos'));
     setSelIf_('selDvSchool', routeGetQS('school'));
+    if (dvSub === 'picks') setSelIf_('selDvPickOwner', routeGetQS('owner'));
   }
 }
 function renderDevy() {
@@ -5444,7 +5449,8 @@ function renderDevy() {
       routeSetQS({ tab: 'history', year: (el('selDvYear') || {}).value || '', owner: (el('selDvOwner') || {}).value || '',
         pos: (el('selDvPos') || {}).value || '', school: (el('selDvSchool') || {}).value || '' });
     } else {
-      routeSetQS({ tab: dvSub === 'picks' ? '' : dvSub, year: '', owner: '', pos: '', school: '' });
+      routeSetQS({ tab: dvSub === 'picks' ? '' : dvSub, year: '',
+        owner: dvSub === 'picks' ? ((el('selDvPickOwner') || {}).value || '') : '', pos: '', school: '' });
     }
   }
   var rows = SEC.devy.rows.filter(function (r) {
@@ -5558,10 +5564,13 @@ function renderDevy() {
       var p = String(r[i.player] == null ? '' : r[i.player]).trim();
       if (p && !/^forfeit/i.test(p)) maxDrafted = Math.max(maxDrafted, Number(r[i.year]) || 0);
     });
+    var fpo = (el('selDvPickOwner') && el('selDvPickOwner').value) || 'All owners';
     var future = SEC.devy.rows.filter(function (r) {
       var p = String(r[i.player] == null ? '' : r[i.player]).trim();
       var y = Number(r[i.year]);
-      return y > maxDrafted && (p === '' || /^forfeit/i.test(p));
+      if (!(y > maxDrafted && (p === '' || /^forfeit/i.test(p)))) return false;
+      if (fpo !== 'All owners' && String(r[i.cur] == null ? '' : r[i.cur]).trim() !== fpo) return false;
+      return true;
     });
     var byYr = {};
     future.forEach(function (r) { (byYr[Number(r[i.year])] = byYr[Number(r[i.year])] || []).push(r); });
@@ -5585,7 +5594,8 @@ function renderDevy() {
       });
       html2 += '</tbody></table></div>';
     });
-    el('dvPicksDuo').innerHTML = html2 || '<div class="note">No future picks listed on the DevyPlayers tab.</div>';
+    el('dvPicksDuo').innerHTML = html2 || '<div class="note">' +
+      (fpo === 'All owners' ? 'No future picks listed on the DevyPlayers tab.' : fpo + ' holds no upcoming devy picks.') + '</div>';
     el('dvPicksNote').textContent = 'Upcoming devy draft picks and who holds them now. A muted original owner means the pick was never traded.';
   } else {
     // records: tie every devy pick into the auction DraftResults history.
