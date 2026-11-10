@@ -20,7 +20,8 @@
 
   header { background: var(--primary); color: #fff; position: sticky; top: 0; z-index: 20; }
   .bar { max-width: 1050px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
+  .shide { display: none; }
   .brand img { height: 34px; width: 34px; border-radius: 50%; object-fit: cover; background: #fff; }
   .brand .name { font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .brand .tag { font-size: 11px; opacity: .75; }
@@ -221,7 +222,7 @@
   .twtab tbody tr:last-child td { border-bottom: none; }
   .twtab td.statlab { text-align: left; color: var(--muted); font-weight: 550; font-variant-numeric: normal; }
   .twtab td.better { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07) !important; }
-  td.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
+  td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); display: inline-block; }
   .odot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: baseline; }
   .rk { font-size: 10.5px; color: var(--muted); font-weight: 600; }
   .twtab .lgavg { color: var(--muted); font-weight: 500; font-size: 12.5px; }
@@ -1008,7 +1009,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2139';
+var RTB_BUILD = '1109.2144';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1247,6 +1248,10 @@ function buildNav() {
     m.appendChild(head);
     m.appendChild(sec);
   });
+
+  // the league name in the header links back home
+  var brandEl = document.querySelector('.brand');
+  if (brandEl) brandEl.onclick = function () { show('home'); closeMenus(); };
 
   document.getElementById('burger').onclick = function (ev) {
     ev.stopPropagation();
@@ -3734,52 +3739,47 @@ function renderDivisions() {
     html += '<div class="note">The geographic era: 2014–15 used East, Central and West divisions before the league switched to the relegation format.</div>';
   }
   // all-time table
-  html += '<h2>All-time by division</h2><div class="twrap"><table class="fit"><thead><tr>' +
-    '<th>Division</th><th>Team-seasons</th><th>W</th><th>L</th><th>Win %</th><th>Avg PF / game</th><th>Avg PF / season</th>' +
-    '</tr></thead><tbody>' +
-    DIVS.map(function (d) {
-      var a = agg[d], g = a.w + a.l;
-      return '<tr><td><b>' + d + '</b></td><td class="num">' + a.ts + '</td><td class="num">' + a.w +
-        '</td><td class="num">' + a.l + '</td><td class="num">' + pct(a.w, a.l) +
-        '</td><td class="num">' + (g ? n1(a.pf / g) : '—') +
-        '</td><td class="num">' + (a.ts ? n1(a.pf / a.ts) : '—') + '</td></tr>';
-    }).join('') + '</tbody></table></div>';
+  html += '<h2>All-time by division</h2><div class="twrap"><table id="dhAll" class="fit"></table></div>';
   // honors table
-  html += '<h2>Hardware by division</h2><div class="twrap"><table class="fit"><thead><tr>' +
-    '<th>Division</th><th>Championships</th><th>Title game trips</th><th>Playoff berths</th><th>1 seeds</th><th>Scoring titles</th>' +
-    '</tr></thead><tbody>' +
-    DIVS.map(function (d) {
-      var a = agg[d];
-      return '<tr><td><b>' + d + '</b></td><td class="num">' + a.ch + '</td><td class="num">' + a.app +
-        '</td><td class="num">' + a.po + '</td><td class="num">' + a.s1 + '</td><td class="num">' + a.sco + '</td></tr>';
-    }).join('') + '</tbody></table></div>';
+  html += '<h2>Hardware by division</h2><div class="twrap"><table id="dhHw" class="fit"></table></div>';
   var chNotes = DIVS.filter(function (d) { return champYears[d].length; }).map(function (d) {
     return '<b>' + d + ':</b> ' + champYears[d].join(', ');
   });
   if (chNotes.length) html += '<div class="note">Champions by division — ' + chNotes.join(' · ') + '</div>';
   if (dhSub === 'cur') html += '<div class="note">The Premier division gets two auto bids and the Second division one, so playoff berths lean structural — the year-by-year table below is the fairer strength test.</div>';
   // year by year
-  html += '<h2>Year by year: best division</h2><div class="twrap"><table class="fit"><thead><tr>' +
-    '<th>Year</th>' + DIVS.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '<th>Best division</th>' +
-    '</tr></thead><tbody>';
+  html += '<h2>Year by year: best division</h2><div class="twrap"><table id="dhYear" class="fit"></table></div>';
   var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; });
-  years.forEach(function (y) {
+  html += '<div class="note">Each division cell shows record · average points per game. Division games cancel out inside a division (someone wins, someone loses), so the gaps between divisions come from cross-division matchups. 🏆 marks the league champion’s division. “Best division” = best combined win %, points per game as the tiebreaker. Regular-season games only, through ' + (years.length ? years[0] : '') + '. Tap a column header to sort.</div>';
+  el('dhBody').innerHTML = html;
+  // fill the three tables (sortable)
+  sortableTable('dhAll', ['Division', 'Team-seasons', 'W', 'L', 'Win %', 'Avg PF / game', 'Avg PF / season'],
+    DIVS.map(function (d) {
+      var a = agg[d], g = a.w + a.l;
+      return ['<b>' + d + '</b>', a.ts, a.w, a.l, pct(a.w, a.l),
+        g ? n1(a.pf / g) : '—', a.ts ? n1(a.pf / a.ts) : '—'];
+    }), [1, 2, 3, 4, 5, 6]);
+  sortableTable('dhHw', ['Division', 'Championships', 'Title game trips', 'Playoff berths', '1 seeds', 'Scoring titles'],
+    DIVS.map(function (d) {
+      var a = agg[d];
+      return ['<b>' + d + '</b>', a.ch, a.app, a.po, a.s1, a.sco];
+    }), [1, 2, 3, 4, 5]);
+  var yrRows = years.map(function (y) {
     var by = byYear[y], best = null, bestKey = [-1, -1];
     DIVS.forEach(function (d) {
       var b = by[d]; if (!b) return;
       var g = b.w + b.l, k = [g ? b.w / g : 0, g ? b.pf / g : 0];
       if (k[0] > bestKey[0] || (k[0] === bestKey[0] && k[1] > bestKey[1])) { bestKey = k; best = d; }
     });
-    html += '<tr><td><b>' + y + '</b></td>' + DIVS.map(function (d) {
-      var b = by[d]; if (!b) return '<td>—</td>';
-      var g = b.w + b.l;
-      return '<td class="num' + (d === best ? ' bestdiv' : '') + '">' + b.w + '-' + b.l +
-        ' · ' + (g ? n1(b.pf / g) : '—') + (b.champ ? ' 🏆' : '') + '</td>';
-    }).join('') + '<td><b>' + (best || '—') + '</b></td></tr>';
+    return [y].concat(DIVS.map(function (d) {
+      var b = by[d]; if (!b) return '—';
+      var g = b.w + b.l, cell = b.w + '-' + b.l + ' · ' + (g ? n1(b.pf / g) : '—') + (b.champ ? ' 🏆' : '');
+      // hidden fixed-width win% prefix so the column sorts by strength, not text
+      cell = '<span class="shide">' + (g ? (b.w / g).toFixed(3) : '0') + '|</span>' + cell;
+      return d === best ? '<span class="bestdiv" style="padding:2px 7px;border-radius:8px">' + cell + '</span>' : cell;
+    })).concat(['<b>' + (best || '—') + '</b>']);
   });
-  html += '</tbody></table></div>' +
-    '<div class="note">Each division cell shows record · average points per game. Division games cancel out inside a division (someone wins, someone loses), so the gaps between divisions come from cross-division matchups. 🏆 marks the league champion’s division. “Best division” = best combined win %, points per game as the tiebreaker. Regular-season games only, through ' + (years.length ? years[0] : '') + '.</div>';
-  el('dhBody').innerHTML = html;
+  sortableTable('dhYear', ['Year'].concat(DIVS).concat(['Best division']), yrRows, [0, 1, 2, 3], [], 0, 1);
 }
 var curSub = 'standings';
 var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['scenarios', 'Playoff scenarios'],
