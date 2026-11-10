@@ -545,7 +545,14 @@
         <option value="thresholds">Weeks over 150 / 120 / under 100</option>
         <option value="streakwl">Streaks: wins &amp; losses</option>
         <option value="streak100">Streaks: 100-point games</option>
+        <option value="streak120">Streaks: 120-point games</option>
         <option value="streakseason">Streaks: seasons</option>
+        <option value="allplay">All-play: career</option>
+        <option value="allplayyear">All-play: best seasons</option>
+        <option value="postreaks">Playoff streaks &amp; droughts</option>
+        <option value="bestloss">Highest-scoring losses</option>
+        <option value="luckywin">Lowest-scoring wins</option>
+        <option value="lossseason">Best losing seasons</option>
       </select>
       <span class="cwrap" id="recFilters" style="display:none">
         <label for="selRYear">Year</label><select id="selRYear"></select>
@@ -636,6 +643,7 @@
           <option value="poscost">Average cost by position</option>
           <option value="expensive">Most expensive players</option>
           <option value="deals">Best draft deals</option>
+          <option value="keeperhof">Keeper hall of fame</option>
           <option value="topheavy">Budget share on priciest pick</option>
           <option value="keepshare">Keeper budget share by owner</option>
           <option value="spendmix">League spending by year</option>
@@ -1919,7 +1927,7 @@ function ensureAggs() {
 function renderRecords() {
   el('selRec').onchange = function () { ensureAggs(); renderRecords(); };
   var v = el('selRec').value, note = '';
-  var filterable = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons'].indexOf(v) > -1;
+  var filterable = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin'].indexOf(v) > -1;
   el('recFilters').style.display = filterable ? 'flex' : 'none';
   var fy = el('selRYear').value, fo = el('selROwner').value, fs = el('selRSet').value;
   function setMatch(r) {
@@ -2025,14 +2033,15 @@ function renderRecords() {
         : v === 'highmatch' || v === 'lowmatch' ? 'Total is both owners\u2019 points combined. Owner column shows the winner. '
         : 'Owner filter includes any game involving the owner. ') +
       'Post-season includes playoffs and the consolation ladder; Playoffs is the title bracket only.';
-  } else if (v === 'streakwl' || v === 'streak100') {
+  } else if (v === 'streakwl' || v === 'streak100' || v === 'streak120') {
+    var sTh = v === 'streak120' ? 120 : 100;
     var byO = {};
     DATA.games.rows.slice().sort(function (a, b) { return a[G('SerialWeek')] - b[G('SerialWeek')]; })
       .forEach(function (r) { (byO[r[G('Owner')]] = byO[r[G('Owner')]] || []).push(r); });
     var rowsS = Object.keys(byO).sort().map(function (o) {
       var items = byO[o].map(function (r) {
         return {
-          v: v === 'streakwl' ? r[G('Result')] === 'W' : Number(r[G('PointsFor')]) >= 100,
+          v: v === 'streakwl' ? r[G('Result')] === 'W' : Number(r[G('PointsFor')]) >= sTh,
           y: Number(r[G('Year')])
         };
       });
@@ -2049,9 +2058,114 @@ function renderRecords() {
       note = 'All games, playoffs and consolation included.';
     } else {
       rowsS.sort(function (a, b) { return b[2] - a[2]; });
-      sortableTable('recTable', ['Owner', 'Current', 'Longest 100+ run', 'When', 'Longest sub-100 run', 'When', 'Total 100+ games'], rowsS, [2, 4, 6], [3, 5], 2, 1);
-      note = 'Consecutive games scoring 100 or more points; all games included.';
+      sortableTable('recTable', ['Owner', 'Current', 'Longest ' + sTh + '+ run', 'When', 'Longest sub-' + sTh + ' run', 'When', 'Total ' + sTh + '+ games'], rowsS, [2, 4, 6], [3, 5], 2, 1);
+      note = 'Consecutive games scoring ' + sTh + ' or more points; all games included. Current shows the live run (+ above, − below).';
     }
+  } else if (v === 'allplay' || v === 'allplayyear') {
+    var apWeeks = {}, apRec = {};
+    DATA.games.rows.forEach(function (r) {
+      if (r[G('Set')] !== 'Regular Season') return;
+      var pf = Number(r[G('PointsFor')]) || 0, pa = Number(r[G('PointsAgainst')]) || 0;
+      if (!pf && !pa) return;
+      var o = r[G('Owner')], sw = Number(r[G('SerialWeek')]), y = Number(r[G('Year')]);
+      (apWeeks[sw] = apWeeks[sw] || []).push([o, pf, y]);
+      var k = o + '|' + y;
+      apRec[k] = apRec[k] || { w: 0, l: 0, apw: 0, apl: 0 };
+      if (pf > pa) apRec[k].w++; else apRec[k].l++;
+    });
+    Object.keys(apWeeks).forEach(function (sw) {
+      var L2 = apWeeks[sw];
+      L2.forEach(function (x) {
+        L2.forEach(function (yv) {
+          if (x === yv) return;
+          var k2 = x[0] + '|' + x[2];
+          if (x[1] > yv[1]) apRec[k2].apw++;
+          else if (x[1] < yv[1]) apRec[k2].apl++;
+          else { apRec[k2].apw += 0.5; apRec[k2].apl += 0.5; }
+        });
+      });
+    });
+    function apfmt(n2) { return n2 % 1 ? n2.toFixed(1) : String(n2); }
+    function luckHtml(luck) {
+      return (luck >= 0 ? '<span class="win">+' : '<span class="loss">−') + Math.abs(luck).toFixed(1) + '</span>';
+    }
+    if (v === 'allplay') {
+      var car = {};
+      Object.keys(apRec).forEach(function (k3) {
+        var o2 = k3.split('|')[0], a3 = apRec[k3];
+        var c2 = car[o2] = car[o2] || { w: 0, l: 0, apw: 0, apl: 0 };
+        c2.w += a3.w; c2.l += a3.l; c2.apw += a3.apw; c2.apl += a3.apl;
+      });
+      var listA = Object.keys(car).map(function (o2) {
+        var a3 = car[o2], tot = a3.apw + a3.apl, g2 = a3.w + a3.l;
+        var exp = tot ? a3.apw / tot * g2 : 0;
+        return { o: o2, a: a3, pctv: tot ? a3.apw / tot : 0, luck: a3.w - exp };
+      }).sort(function (x, yv) { return yv.pctv - x.pctv; });
+      sortableTable('recTable', ['#', 'Owner', 'All-play W', 'All-play L', 'All-play %', 'Actual W-L', 'Luck'],
+        listA.map(function (x, i2) {
+          return [i2 + 1, '<b>' + x.o + '</b>', apfmt(x.a.apw), apfmt(x.a.apl),
+            x.pctv.toFixed(3).replace(/^0/, ''), x.a.w + '-' + x.a.l, luckHtml(x.luck)];
+        }), [0, 2, 3, 4, 6], [0]);
+      note = 'All-play: your record if you had played every owner every week (regular season). Luck = actual wins minus all-play expected wins — positive means friendly schedules.';
+    } else {
+      var listY = Object.keys(apRec).map(function (k3) {
+        var p2 = k3.split('|'), a3 = apRec[k3];
+        var tot = a3.apw + a3.apl, g2 = a3.w + a3.l;
+        var exp = tot ? a3.apw / tot * g2 : 0;
+        return { o: p2[0], y: Number(p2[1]), a: a3, pctv: tot ? a3.apw / tot : 0, luck: a3.w - exp };
+      }).filter(function (x) { return x.a.w + x.a.l >= 8; })
+        .sort(function (x, yv) { return yv.pctv - x.pctv; });
+      sortableTable('recTable', ['#', 'Owner', 'Year', 'All-play W-L', 'All-play %', 'Actual', 'Luck'],
+        listY.slice(0, 20).map(function (x, i2) {
+          return [i2 + 1, '<b>' + x.o + '</b>', x.y, apfmt(x.a.apw) + '-' + apfmt(x.a.apl),
+            x.pctv.toFixed(3).replace(/^0/, ''), x.a.w + '-' + x.a.l, luckHtml(x.luck)];
+        }), [0, 2, 4, 6], [0]);
+      note = 'The 20 most dominant all-play seasons (minimum 8 games played).';
+    }
+  } else if (v === 'postreaks') {
+    var byOw = {};
+    DATA.seasons.rows.slice().sort(function (a, b) { return a[S('Year')] - b[S('Year')]; })
+      .forEach(function (r) { (byOw[r[S('Owner')]] = byOw[r[S('Owner')]] || []).push(r); });
+    var rowsP = Object.keys(byOw).sort().map(function (o2) {
+      var items = byOw[o2].map(function (r) {
+        return { v: r[S('PlayoffAppearance')] === true, y: Number(r[S('Year')]) };
+      });
+      var s2 = runStats(items);
+      return ['<b>' + o2 + '</b>', (s2.cur > 0 ? 'In ×' + s2.cur : s2.cur < 0 ? 'Out ×' + (-s2.cur) : ''),
+        s2.lt, s2.ltA, s2.lf, s2.lfA, s2.total];
+    });
+    rowsP.sort(function (a, b) { return b[2] - a[2]; });
+    sortableTable('recTable', ['Owner', 'Current', 'Longest playoff run', 'When', 'Longest drought', 'When', 'Total appearances'],
+      rowsP, [2, 4, 6], [3, 5], 2, 1);
+    note = 'Consecutive seasons making (or missing) the playoffs, through the last completed season.';
+  } else if (v === 'bestloss' || v === 'luckywin') {
+    var cand = DATA.games.rows.filter(function (r) {
+      var pf = Number(r[G('PointsFor')]) || 0, pa = Number(r[G('PointsAgainst')]) || 0;
+      if (!pf && !pa) return false;
+      if (!setMatch(r) || !yearMatch(r)) return false;
+      if (fo !== 'All owners' && r[G('Owner')] !== fo) return false;
+      return v === 'bestloss' ? pf < pa : pf > pa;
+    }).sort(function (a, b) {
+      return v === 'bestloss'
+        ? Number(b[G('PointsFor')]) - Number(a[G('PointsFor')])
+        : Number(a[G('PointsFor')]) - Number(b[G('PointsFor')]);
+    }).slice(0, 20);
+    table('recTable', ['#', 'Year', 'Week', 'Owner', 'PF', 'Opponent', 'Their score'],
+      cand.map(function (r, i2) {
+        return [i2 + 1, r[G('Year')], r[G('WeekLabel')], '<b>' + r[G('Owner')] + '</b>',
+          '<b>' + n1(Number(r[G('PointsFor')])) + '</b>', r[G('Opponent')], n1(Number(r[G('PointsAgainst')]))];
+      }), [0, 1, 4, 6]);
+    note = v === 'bestloss' ? 'The most points ever scored in a loss — the heartbreak list.' : 'The fewest points that still won — the grand-theft list.';
+  } else if (v === 'lossseason') {
+    var ls = DATA.seasons.rows.filter(function (r) { return r[S('Wins')] < r[S('Losses')]; })
+      .sort(function (a, b) { return b[S('PointsFor')] - a[S('PointsFor')]; }).slice(0, 20);
+    table('recTable', ['#', 'Owner', 'Year', 'W-L', 'PF', 'PF / game'],
+      ls.map(function (r, i2) {
+        var g2 = r[S('Wins')] + r[S('Losses')];
+        return [i2 + 1, '<b>' + r[S('Owner')] + '</b>', r[S('Year')], r[S('Wins')] + '-' + r[S('Losses')],
+          n1(r[S('PointsFor')]), n1(g2 ? r[S('PointsFor')] / g2 : 0)];
+      }), [0, 2, 4, 5]);
+    note = 'The best offenses that still finished with a losing record.';
   } else if (v === 'streakseason') {
     var byOwner = {};
     DATA.seasons.rows.slice().sort(function (a, b) { return a[S('Year')] - b[S('Year')]; })
@@ -2572,6 +2686,35 @@ function renderDraftRecords() {
     });
     table('drecTable', ['Year', 'Drafted', 'Keepers + franchise', 'Taxi', 'Devy', 'Rookie', 'Unused'], rows6, [0, 1, 2, 3, 4, 5, 6]);
     note = 'League-wide dollars by acquisition type each year.';
+  } else if (v === 'keeperhof') {
+    // most-retained players, in any form: keeper, franchise, taxi, devy
+    var hof = {};
+    SEC.draft.rows.forEach(function (r) {
+      var cat = String(r[DI.Category] == null ? '' : r[DI.Category]).trim();
+      if (['Keeper', 'Franchised', 'Taxi', 'Devy'].indexOf(cat) === -1) return;
+      var p2 = String(r[DI.Player] == null ? '' : r[DI.Player]).trim();
+      if (!p2) return;
+      var k2 = p2.toLowerCase().replace(/[.’']/g, '')
+        .replace(/\s+(jr|sr|ii|iii|iv|v)\.?$/i, '').replace(/\s+/g, ' ');
+      var e2 = hof[k2] = hof[k2] || { name: p2, pos: String(r[DI.Position] || ''), K: 0, F: 0, T: 0, D: 0, owners: {}, tops: 0 };
+      e2.name = p2;
+      if (cat === 'Keeper') e2.K++; else if (cat === 'Franchised') e2.F++;
+      else if (cat === 'Taxi') e2.T++; else e2.D++;
+      var ow2 = String(r[DI.Owner] == null ? '' : r[DI.Owner]).trim();
+      if (ow2) e2.owners[ow2] = 1;
+      var rk = Number(r[DI.SeasonPtsRankPosition]);
+      if (rk >= 1 && rk <= 12) e2.tops++;
+    });
+    var listH = Object.keys(hof).map(function (k2) {
+      var e3 = hof[k2]; e3.totalK = e3.K + e3.F + e3.T + e3.D; return e3;
+    }).sort(function (a, b) { return b.totalK - a.totalK || b.tops - a.tops; }).slice(0, 30);
+    table('drecTable', ['#', 'Player', 'Pos', 'Seasons retained', 'Keeper', 'Franchise', 'Taxi', 'Devy', 'Top-12 while kept', 'Owners'],
+      listH.map(function (e3, i2) {
+        return [i2 + 1, '<b>' + e3.name + '</b>', e3.pos, '<b>' + e3.totalK + '</b>',
+          e3.K || '', e3.F || '', e3.T || '', e3.D || '', e3.tops || '',
+          Object.keys(e3.owners).sort().join(', ')];
+      }), [0, 3, 4, 5, 6, 7, 8]);
+    note = 'The most-retained players in league history, counting every form of keeping — keeper, franchise tag, taxi squad and devy. Top-12 counts positional finishes in retained seasons.';
   }
   el('drecNote').textContent = note;
 }
@@ -3581,6 +3724,43 @@ function renderCurrent() {
     if (showMagic && d === 'Third') html += '<div class="note">Magic # = wins that lock a playoff auto bid no matter what anyone else does (division or wild-card path, whichever is shorter).</div>';
     if (divGames) html += '<div class="note">Division average per game: ' + n1(divPts / divGames) + '</div>';
   });
+
+  // all-play standings: everyone vs every score, every week
+  (function () {
+    var ap = {};
+    c.owners.forEach(function (o) { ap[o] = { apw: 0, apl: 0 }; });
+    var wksAP = {};
+    c.owners.forEach(function (o) { Object.keys(c.st[o].weekPts).forEach(function (w2) { wksAP[w2] = 1; }); });
+    Object.keys(wksAP).forEach(function (w2) {
+      var scores = [];
+      c.owners.forEach(function (o) { if (c.st[o].weekPts[w2] != null) scores.push([o, c.st[o].weekPts[w2]]); });
+      scores.forEach(function (x) {
+        scores.forEach(function (yv) {
+          if (x === yv) return;
+          if (x[1] > yv[1]) ap[x[0]].apw++;
+          else if (x[1] < yv[1]) ap[x[0]].apl++;
+          else { ap[x[0]].apw += 0.5; ap[x[0]].apl += 0.5; }
+        });
+      });
+    });
+    var ordered = c.owners.slice().sort(function (a, b) {
+      return (ap[b].apw / Math.max(1, ap[b].apw + ap[b].apl)) - (ap[a].apw / Math.max(1, ap[a].apw + ap[a].apl));
+    });
+    function apf(n2) { return n2 % 1 ? n2.toFixed(1) : String(n2); }
+    html += '<h2>All-play standings</h2><div class="twrap"><table class="fit"><thead><tr>' +
+      '<th>Team</th><th class="num">Record</th><th class="num">All-play</th><th class="num">All-play %</th><th class="num">Luck</th></tr></thead><tbody>';
+    ordered.forEach(function (o) {
+      var a2 = ap[o], g2 = c.st[o].w + c.st[o].l, tot = a2.apw + a2.apl;
+      var exp = tot ? a2.apw / tot * g2 : 0;
+      var luck = c.st[o].w - exp;
+      html += '<tr><td><b>' + o + '</b></td><td class="num">' + c.st[o].w + '-' + c.st[o].l + '</td>' +
+        '<td class="num">' + apf(a2.apw) + '-' + apf(a2.apl) + '</td>' +
+        '<td class="num">' + (tot ? (a2.apw / tot).toFixed(3).replace(/^0/, '') : '—') + '</td>' +
+        '<td class="num">' + (luck >= 0 ? '<span class="win">+' : '<span class="loss">−') + Math.abs(luck).toFixed(1) + '</span></td></tr>';
+    });
+    html += '</tbody></table></div><div class="note">All-play: your record if you played every team every week. ' +
+      'Luck = actual wins minus all-play expected wins — green has had friendly schedules, red has been robbed.</div>';
+  })();
 
   // playoff seeding
   html += '<!--CURSPLIT-->';
