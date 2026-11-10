@@ -3546,14 +3546,15 @@ function curCompute(maxWeek) {
     h2h[k1][aw ? 0 : 1]++; h2h[k2][aw ? 1 : 0]++;
   });
   function orderTied(group) {
+    // league rule: a two-way tie goes to head-to-head (a split series goes to
+    // points for); three or more teams tied on record go straight to points for
+    if (group.length >= 3) {
+      return group.slice().sort(function (a, b) { return st[b].pf - st[a].pf; });
+    }
     return group.slice().sort(function (a, b) {
-      var wa = 0, la = 0, wb = 0, lb = 0;
-      group.forEach(function (p) {
-        if (p !== a) { var r1_ = h2h[a + '|' + p] || [0, 0]; wa += r1_[0]; la += r1_[1]; }
-        if (p !== b) { var r2_ = h2h[b + '|' + p] || [0, 0]; wb += r2_[0]; lb += r2_[1]; }
-      });
-      var pa2 = wa + la ? wa / (wa + la) : 0, pb2 = wb + lb ? wb / (wb + lb) : 0;
-      return (pb2 - pa2) || (st[b].pf - st[a].pf);
+      var r1_ = h2h[a + '|' + b] || [0, 0];
+      if (r1_[0] !== r1_[1]) return r1_[1] - r1_[0];   // head-to-head winner first
+      return st[b].pf - st[a].pf;
     });
   }
   function rank(teams) {
