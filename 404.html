@@ -1009,7 +1009,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2148';
+var RTB_BUILD = '1109.2236';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3748,7 +3748,9 @@ function renderDivisions() {
   if (chNotes.length) html += '<div class="note">Champions by division — ' + chNotes.join(' · ') + '</div>';
   if (dhSub === 'cur') html += '<div class="note">The Premier division gets two auto bids and the Second division one, so playoff berths lean structural — the year-by-year table below is the fairer strength test.</div>';
   // year by year
-  html += '<h2>Year by year: best division</h2><div class="twrap"><table id="dhYear" class="fit"></table></div>';
+  html += '<h2>Year by year: best division</h2><div class="twrap"><table id="dhYear" class="fit"></table></div>' +
+    '<div class="twrap" style="margin-top:12px"><table id="dhBW" class="fit"></table></div>' +
+    '<div class="note" id="dhBWNote"></div>';
   var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; });
   html += '<div class="note">Each division shows its combined record and average points per game. Division games cancel out inside a division (someone wins, someone loses), so the gaps between divisions come from cross-division matchups. 🏆 marks the league champion’s division. “Best” = best combined win %, points per game as the tiebreaker. Regular-season games only, through ' + (years.length ? years[0] : '') + '. Tap a column header to sort.</div>';
   el('dhBody').innerHTML = html;
@@ -3766,13 +3768,14 @@ function renderDivisions() {
     }), [1, 2, 3, 4, 5]);
   // year-by-year: grouped header (Record + Avg PF per division), custom sortable
   var yrData = years.map(function (y) {
-    var by = byYear[y], best = null, bestKey = [-1, -1];
+    var by = byYear[y], best = null, bestKey = [-1, -1], worst = null, worstKey = [9, 1e9];
     DIVS.forEach(function (d) {
       var b = by[d]; if (!b) return;
       var g = b.w + b.l, k = [g ? b.w / g : 0, g ? b.pf / g : 0];
       if (k[0] > bestKey[0] || (k[0] === bestKey[0] && k[1] > bestKey[1])) { bestKey = k; best = d; }
+      if (k[0] < worstKey[0] || (k[0] === worstKey[0] && k[1] < worstKey[1])) { worstKey = k; worst = d; }
     });
-    return { y: y, best: best, by: by };
+    return { y: y, best: best, worst: worst, by: by };
   });
   var ys = renderDivisions._ys = renderDivisions._ys || { col: 0, dir: 1 };
   function drawDhYear() {
@@ -3820,6 +3823,24 @@ function renderDivisions() {
     });
   }
   drawDhYear();
+  // best / worst season totals
+  var bw = {};
+  DIVS.forEach(function (d) { bw[d] = { best: [], worst: [] }; });
+  yrData.forEach(function (row) {
+    if (row.best) bw[row.best].best.push(row.y);
+    if (row.worst) bw[row.worst].worst.push(row.y);
+  });
+  sortableTable('dhBW', ['Division', 'Years as best division', 'Years as worst division'],
+    DIVS.map(function (d) {
+      return ['<b>' + d + '</b>', bw[d].best.length, bw[d].worst.length];
+    }), [1, 2]);
+  var bwNotes = DIVS.map(function (d) {
+    var parts = [];
+    if (bw[d].best.length) parts.push('best in ' + bw[d].best.sort().join(', '));
+    if (bw[d].worst.length) parts.push('worst in ' + bw[d].worst.sort().join(', '));
+    return parts.length ? '<b>' + d + ':</b> ' + parts.join(' · ') : '';
+  }).filter(Boolean);
+  el('dhBWNote').innerHTML = bwNotes.join(' &nbsp;|&nbsp; ');
 }
 var curSub = 'standings';
 var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['scenarios', 'Playoff scenarios'],
