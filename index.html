@@ -1001,7 +1001,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2123';
+var RTB_BUILD = '1109.2134';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3168,6 +3168,8 @@ function ensureThisWeek() {
       TW.games.map(function (g, i) { return '<option value="' + i + '">' + g.h + ' vs ' + g.a + '</option>'; }).join('');
     el('selTWGame').onchange = function () { twPick = el('selTWGame').value; renderThisWeek(); };
     renderThisWeek();
+    // if the playoff-scenarios tab is waiting on this week's matchups, redraw it
+    try { if (CUR && el('v-current').classList.contains('on')) renderCurrent(); } catch (e2) {}
     // enrich as the extra data arrives
     ensurePosscData(renderThisWeek);
     google.script.run.withSuccessHandler(function (t) { TWTOPS = t; renderThisWeek(); })
@@ -3740,6 +3742,111 @@ function curPlayoffMath_(c) {
   else owners.forEach(function (o) { if ((c.auto || []).indexOf(o) === -1) bench = Math.max(bench, c.st[o].pf); });
   return { magic: magic, magicRaw: magicRaw, elim: elim, remain: remain, bench: bench };
 }
+// ESPN-style clinch/elimination scenarios for this week's games: enumerate every
+// outcome of the week (2^games), test the deterministic clinch for each, then
+// compress into the smallest readable conditions.
+function curScenarios_(c, PM, games) {
+  var owners = c.owners, n = games.length, total = 1 << n;
+  var remainAfter = {};
+  owners.forEach(function (o) { remainAfter[o] = Math.max(0, PM.remain[o] - 1); });
+  function winnerOf(mask, gi) { return (mask >> gi) & 1 ? games[gi][1] : games[gi][0]; }
+  function clinchTest(stW, o) {
+    var maxW2 = {};
+    owners.forEach(function (x) { maxW2[x] = stW[x] + remainAfter[x]; });
+    var oth = owners.filter(function (x) { return x !== o; }).map(function (x) { return maxW2[x]; })
+      .sort(function (a, b) { return b - a; });
+    var m = (oth[4] != null ? oth[4] : -1) + 1 - stW[o];
+    var d = c.div[o], rv = (c.divRanks[d] || []).filter(function (x) { return x !== o; });
+    if (d === 'Premier' && rv.length >= 2) {
+      var rm = rv.map(function (x) { return maxW2[x]; }).sort(function (a, b) { return b - a; });
+      m = Math.min(m, rm[1] + 1 - stW[o]);
+    } else if (d === 'Second' && rv.length) {
+      m = Math.min(m, Math.max.apply(null, rv.map(function (x) { return maxW2[x]; })) + 1 - stW[o]);
+    }
+    return m <= 0;
+  }
+  function elimTest(stW, o) {
+    var mw = stW[o] + remainAfter[o];
+    var d = c.div[o], rv = (c.divRanks[d] || []).filter(function (x) { return x !== o; });
+    var aheadDiv = rv.filter(function (x) { return stW[x] > mw; }).length;
+    var aheadAll = owners.filter(function (x) { return x !== o && stW[x] > mw; }).length;
+    return (d === 'Premier' ? aheadDiv >= 2 : d === 'Second' ? aheadDiv >= 1 : true) && aheadAll >= 5;
+  }
+  var masks = { clinch: {}, elim: {} };
+  owners.forEach(function (o) { masks.clinch[o] = []; masks.elim[o] = []; });
+  for (var mask = 0; mask < total; mask++) {
+    var stW = {};
+    owners.forEach(function (x) { stW[x] = c.st[x].w; });
+    for (var gi = 0; gi < n; gi++) stW[winnerOf(mask, gi)]++;
+    owners.forEach(function (o) {
+      masks.clinch[o].push(clinchTest(stW, o));
+      masks.elim[o].push(elimTest(stW, o));
+    });
+  }
+  function findConds(arr, o, cap) {
+    if (!arr.some(Boolean)) return null;
+    if (arr.every(Boolean)) return 'always';
+    var gX = -1;
+    games.forEach(function (g, gi) { if (g[0] === o || g[1] === o) gX = gi; });
+    function okCond(cond) {
+      var seen = false;
+      for (var m2 = 0; m2 < total; m2++) {
+        var consistent = true;
+        for (var ci = 0; ci < cond.length; ci++) {
+          if (winnerOf(m2, cond[ci][0]) !== cond[ci][1]) { consistent = false; break; }
+        }
+        if (!consistent) continue;
+        seen = true;
+        if (!arr[m2]) return false;
+      }
+      return seen;
+    }
+    var cands = [];
+    if (gX > -1) { cands.push([[gX, o]]); cands.push([[gX, games[gX][0] === o ? games[gX][1] : games[gX][0]]]); }
+    for (var g1 = 0; g1 < n; g1++) {
+      if (g1 === gX) continue;
+      for (var s1 = 0; s1 < 2; s1++) {
+        var c1 = [g1, games[g1][s1]];
+        cands.push([c1]);
+        if (gX > -1) {
+          cands.push([[gX, o], c1]);
+          cands.push([[gX, games[gX][0] === o ? games[gX][1] : games[gX][0]], c1]);
+        }
+        for (var g2 = g1 + 1; g2 < n; g2++) {
+          if (g2 === gX) continue;
+          for (var s2 = 0; s2 < 2; s2++) {
+            var c2 = [g2, games[g2][s2]];
+            cands.push([c1, c2]);
+            if (gX > -1) cands.push([[gX, o], c1, c2]);
+          }
+        }
+      }
+    }
+    cands.sort(function (a, b) { return a.length - b.length; });
+    var found = [];
+    cands.forEach(function (cond) {
+      if (found.length >= cap) return;
+      var impliedBy = found.some(function (f) {
+        return f.every(function (fc) {
+          return cond.some(function (cc) { return cc[0] === fc[0] && cc[1] === fc[1]; });
+        });
+      });
+      if (impliedBy) return;
+      if (okCond(cond)) found.push(cond);
+    });
+    return found.length ? found : 'complex';
+  }
+  function phrase(cond, o) {
+    return cond.map(function (cd) {
+      var g = games[cd[0]], w = cd[1], l = g[0] === w ? g[1] : g[0];
+      if (w === o) return '<b>beat ' + l + '</b>';
+      if (l === o) return 'a loss to ' + w;
+      return 'a <b>' + l + '</b> loss (to ' + w + ')';
+    }).join(' + ');
+  }
+  return { findConds: findConds, phrase: phrase, masks: masks };
+}
+
 function renderCurrent() {
   if (!CUR) return;
   var c = curCompute(null);
@@ -3944,29 +4051,98 @@ function renderCurrent() {
     sHtml += clin.length ? '<ul>' + clin.map(function (x) {
       return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') has locked a playoff berth.</li>';
     }).join('') + '</ul>' : '<div class="note">Nobody has clinched yet.</div>';
-    sHtml += '<h2 style="font-size:15px">🎯 What it takes</h2>';
+    // ESPN-style this-week scenarios need this week's matchups covering all owners
+    var scen = null, scenWk = 0, scenGames = null;
+    if (TW && TW.games && TW.games.length && TW.meta) {
+      var gpairs = TW.games.map(function (g) { return [g.h, g.a]; });
+      var covered = {};
+      gpairs.forEach(function (p) { covered[p[0]] = 1; covered[p[1]] = 1; });
+      var allIn = c.owners.every(function (o) { return covered[o]; }) &&
+        gpairs.length * 2 === c.owners.length;
+      // snapshot must be a week that isn't in the standings yet, with weeks still to play
+      var anyRemain = c.owners.some(function (o) { return PM.remain[o] > 0; });
+      if (allIn && anyRemain && TW.meta.week > c.played) {
+        try {
+          scen = curScenarios_(c, PM, gpairs);
+          scenWk = TW.meta.week;
+          scenGames = gpairs;
+        } catch (eScen) { scen = null; }
+      }
+    }
     aliveS.sort(function (a, b) {
       return (a.m == null ? 98 : a.m) - (b.m == null ? 98 : b.m) ||
         c.st[b.o].w - c.st[a.o].w || c.st[b.o].pf - c.st[a.o].pf;
     });
-    sHtml += aliveS.length ? '<ul>' + aliveS.map(function (x) {
-      var line;
+    function magicLine(x) {
       if (x.m != null) {
-        line = x.m === PM.remain[x.o]
+        return x.m === PM.remain[x.o]
           ? 'must <b>win out</b> — do that and nobody can keep them out.'
           : 'clinches with <b>' + x.m + ' more win' + (x.m === 1 ? '' : 's') + '</b>, no help needed.';
       } else if (!x.dead) {
         var help = x.raw - PM.remain[x.o];
-        line = 'can’t clinch on their own wins alone: needs to <b>win out</b> plus <b>' + help +
+        return 'can’t clinch on their own wins alone: needs to <b>win out</b> plus <b>' + help +
           ' slip-up' + (help === 1 ? '' : 's') + '</b> from the teams ahead.';
-      } else {
-        line = 'auto bids are out of reach — the road is the <b>points-for 6 seed</b>: ' +
-          (x.deficit <= 0 ? '<b>currently holding it</b>' :
-            n1(x.deficit) + ' points behind ' + (sixO || 'the 6-seed holder')) +
-          ', ' + PM.remain[x.o] + ' week' + (PM.remain[x.o] === 1 ? '' : 's') + ' to go.';
       }
-      return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + '): ' + line + '</li>';
-    }).join('') + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
+      return 'auto bids are out of reach — the road is the <b>points-for 6 seed</b>: ' +
+        (x.deficit <= 0 ? '<b>currently holding it</b>' :
+          n1(x.deficit) + ' points behind ' + (sixO || 'the 6-seed holder')) +
+        ', ' + PM.remain[x.o] + ' week' + (PM.remain[x.o] === 1 ? '' : 's') + ' to go.';
+    }
+    if (scen) {
+      sHtml += '<h2 style="font-size:15px">🎯 Clinching scenarios — Week ' + scenWk + '</h2>';
+      var anyScen = false, scHtml = '';
+      aliveS.forEach(function (x) {
+        var opp = null;
+        scenGames.forEach(function (p) { if (p[0] === x.o) opp = p[1]; if (p[1] === x.o) opp = p[0]; });
+        var head = '<b>' + x.o + '</b> (' + x.rec + ')' + (opp ? ' — plays ' + opp : '');
+        var body;
+        if (x.dead) {
+          body = magicLine(x);
+        } else {
+          var conds = scen.findConds(scen.masks.clinch[x.o], x.o, 4);
+          if (conds === null) {
+            body = 'cannot clinch this week — ' + magicLine(x);
+          } else if (conds === 'always') {
+            body = '<b>clinches this week no matter what happens.</b>';
+            anyScen = true;
+          } else if (conds === 'complex') {
+            body = 'can clinch this week, but only through a tangle of combinations — win and watch the scoreboard.';
+            anyScen = true;
+          } else {
+            body = 'clinches a playoff spot with ' + (conds.length > 1 ? 'any of:' : '') +
+              '<ol style="margin:4px 0 2px 18px;padding:0">' +
+              conds.map(function (cd) { return '<li style="margin:3px 0">' + scen.phrase(cd, x.o) + '</li>'; }).join('') +
+              '</ol>';
+            anyScen = true;
+          }
+        }
+        scHtml += '<li style="margin:7px 0">' + head + ': ' + body + '</li>';
+      });
+      sHtml += aliveS.length ? '<ul>' + scHtml + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
+      if (aliveS.length && !anyScen) sHtml += '<div class="note">Nobody can clinch in Week ' + scenWk + ' — the first clinching scenarios will appear the following week.</div>';
+      // elimination watch: alive owners who could lose the auto-bid path this week
+      var ewHtml = '';
+      aliveS.forEach(function (x) {
+        if (x.dead) return;
+        var ec = scen.findConds(scen.masks.elim[x.o], x.o, 2);
+        if (ec === null) return;
+        var btxt = ec === 'always'
+          ? 'will fall out of the auto-bid race this week no matter what happens — points-for 6 seed only from here.'
+          : ec === 'complex'
+          ? 'could fall out of the auto-bid race this week in several combinations.'
+          : 'falls out of the auto-bid race (points-for 6 seed only) with: ' +
+            ec.map(function (cd) { return scen.phrase(cd, x.o); }).join('; <i>or</i> ');
+        ewHtml += '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') ' + btxt + '</li>';
+      });
+      if (ewHtml) sHtml += '<h2 style="font-size:15px">😬 Elimination watch — Week ' + scenWk + '</h2><ul>' + ewHtml + '</ul>';
+    } else {
+      sHtml += '<h2 style="font-size:15px">🎯 What it takes</h2>';
+      sHtml += aliveS.length ? '<ul>' + aliveS.map(function (x) {
+        return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + '): ' + magicLine(x) + '</li>';
+      }).join('') + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
+      if (!TW && !TWLOADING) { try { ensureThisWeek(); } catch (eTW) {} }
+      if (!TW) sHtml += '<div class="note">Loading this week’s matchups for exact clinching scenarios…</div>';
+    }
     sHtml += '<h2 style="font-size:15px">⚰️ Out of it, within reason</h2>';
     sHtml += deadS.length ? '<ul>' + deadS.map(function (x) {
       return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') — no auto-bid path, and the points-for seed sits ' + n1(x.deficit) + ' away.</li>';
