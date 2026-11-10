@@ -975,7 +975,9 @@ Object.defineProperty(google.script, 'run', {
             return r.json();
           }).then(function (j) {
             if (!j || j.ok !== true) throw new Error((j && j.error) || 'API error');
-            ok(j.data);
+            // run the success handler outside the promise chain: a render bug
+            // must not be reported as an API failure
+            setTimeout(function () { ok(j.data); }, 0);
           }).catch(function (e) { fail(e); });
         };
       }
@@ -1013,11 +1015,14 @@ window.addEventListener('popstate', function () {
   try { show(pageFromPath()); } finally { ROUTING_BACK = false; }
 });
 function routePush(page) {
+  var replace = show._aliased; show._aliased = 0;
   if (ROUTING_BACK || !window.history || !history.pushState) return;
   var slug = PAGE_SLUGS.hasOwnProperty(page) ? PAGE_SLUGS[page] : page;
   var url = (SITE_BASE + '/' + slug).replace(/\/+$/, '');
   if (!url) url = '/';
-  try { if (location.pathname !== url) history.pushState(null, '', url); } catch (eH) { }
+  try {
+    if (location.pathname !== url) history[replace ? 'replaceState' : 'pushState'](null, '', url);
+  } catch (eH) { }
 }
 var DATA = null, AGGS = {}, SEC = null, SECLOADING = false, CONST = null, CONSTLOADING = false, SQUADS = null, SQUADSLOADING = false;
 var DI = null, DDI = null, KI = null, TDI = null;
@@ -1088,7 +1093,11 @@ document.addEventListener('DOMContentLoaded', function () {
       try { if (fresh) localStorage.setItem(BOOT_LS_KEY, fresh); } catch (eS) { }
       if (!BOOTED_FROM_CACHE || fresh !== stale) {
         DATA = d;
+        // new data: drop the memoized header maps and keep the reader's scroll position
+        S.map = null; G.map = null; C.map = null;
+        if (BOOTED_FROM_CACHE) show._keepScroll = 1;
         try { onData(); } catch (eO) { if (!BOOTED_FROM_CACHE) throw eO; }
+        show._keepScroll = 0;
       }
       // warm the heavier bundle in the background once the page is usable
       setTimeout(function () { try { ensureSecondary(); } catch (e) { } }, 2500);
@@ -1210,7 +1219,7 @@ function onData() {
 
 var CURPAGE = pageFromPath();
 function show(page) {
-  if (page === 'devy') { page = 'devydraft'; dvSub = 'roster'; }
+  if (page === 'devy') { page = 'devydraft'; dvSub = 'roster'; show._aliased = 1; }
   CURPAGE = page;
   routePush(page);
   document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('on'); });
@@ -1254,7 +1263,7 @@ function show(page) {
     if (!SQUADS) el('squadMsg').textContent = 'Loading taxi squads\u2026';
     ensureSquads();
   }
-  window.scrollTo(0, 0);
+  if (!show._keepScroll) window.scrollTo(0, 0);
 }
 
 // ---------- helpers ----------
@@ -1296,6 +1305,8 @@ function table(id, headers, rows, numCols, growCol) {
 // shouldn't be sortable (year lists, chip/honor columns, etc).
 var SORTSTATE = {};
 function stripTags(v) { return String(v == null ? '' : v).replace(/<[^>]*>/g, '').trim(); }
+// escape sheet free-text before it lands in innerHTML (keeps a stray "<" from eating the row)
+function escHtml_(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 function sortKey(v) {
   var s = stripTags(v).replace(/[$,%]/g, '').replace(/\u2013/g, '-');
   if (s === '' || s === '-' || s === '\u2014') return null;
@@ -1304,7 +1315,9 @@ function sortKey(v) {
   var rec = s.match(/^(\d+)-(\d+)$/);
   if (rec) {
     var w = Number(rec[1]), l = Number(rec[2]);
-    return w + l ? w / (w + l) : 0;
+    // only treat small numbers as a W-L record; "2014-2016" is a year span
+    if (w + l < 200) return w + l ? w / (w + l) : 0;
+    return s.toLowerCase();
   }
   var posrk = s.match(/^[A-Za-z\/]{1,4}(\d+)$/);   // WR5, RB23, D/ST3 sort by the number
   if (posrk) return Number(posrk[1]);
@@ -1530,7 +1543,9 @@ function card(label, value, sub) {
 }
 function startCountdown() {
   if (!CONFIG.CountdownTarget) return;
-  var target = new Date(CONFIG.CountdownTarget + 'T09:00:00');
+  // tolerate a real date cell (serializes as 2026-08-29T04:00:00.000Z) as well as plain YYYY-MM-DD
+  var dstr = String(CONFIG.CountdownTarget).slice(0, 10);
+  var target = new Date(dstr + 'T09:00:00');
   if (isNaN(target)) return;
   var box = el('countdown'); box.style.display = 'flex';
   function tick() {
@@ -1539,7 +1554,9 @@ function startCountdown() {
     var d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4);
     box.innerHTML = '<div><b>' + d + '</b><span>DAYS</span></div><div><b>' + h + '</b><span>HRS</span></div><div><b>' + m + '</b><span>MIN</span></div>';
   }
-  tick(); setInterval(tick, 30000);
+  tick();
+  if (startCountdown._t) clearInterval(startCountdown._t);
+  startCountdown._t = setInterval(tick, 30000);
 }
 
 // ---------- seasons ----------
@@ -1916,10 +1933,10 @@ function ensureSecondary() {
   SECLOADING = true;
   google.script.run.withSuccessHandler(function (d) {
     SECLOADING = false;
-    if (d && d.error) { el('draftMsg').textContent = d.error; el('keepMsg').textContent = d.error; return; }
+    if (d && d.error) { el('draftMsg').textContent = d.error; el('keepMsg').textContent = d.error; el('devyDMsg').textContent = d.error; return; }
     SEC = d;
     DI = ix(SEC.draft); DDI = ix(SEC.dollars); KI = ix(SEC.keepers); TDI = ix(SEC.taxidevy);
-    el('draftMsg').textContent = ''; el('keepMsg').textContent = '';
+    el('draftMsg').textContent = ''; el('keepMsg').textContent = ''; el('devyDMsg').textContent = '';
     fillDraftSelects(); fillKeeperSelects(); fillDevySelects();
     renderDollars(); renderDraft(); renderDraftRecords(); renderLocations();
     renderKeepers(); renderDevy();
@@ -1927,7 +1944,7 @@ function ensureSecondary() {
   }).withFailureHandler(function (e) {
     SECLOADING = false;
     var msg = 'Could not load draft & keeper data: ' + (e && e.message ? e.message : e);
-    el('draftMsg').textContent = msg; el('keepMsg').textContent = msg;
+    el('draftMsg').textContent = msg; el('keepMsg').textContent = msg; el('devyDMsg').textContent = msg;
   }).getSecondaryData();
 }
 function uniqYears(rows, yi) {
@@ -2483,11 +2500,10 @@ function renderKeepDD() {
   el('keepDD').style.display = (el('selKOwner').value === 'All owners') ? 'block' : 'none';
 }
 function ensureKeepDD() {
+  // one guarded loader for draft dollars everywhere; its success path also
+  // refreshes the keeper-page widgets
   if (BUDGETS) { renderKeepDD(); renderOwnerDollars(); return; }
-  google.script.run.withSuccessHandler(function (d) {
-    BUDGETS = (typeof normalizeBudgets === 'function') ? normalizeBudgets(d) : d;
-    renderKeepDD(); renderOwnerDollars();
-  }).withFailureHandler(function () { }).getCurrentDraftDollars();
+  ensureBudgets();
 }
 // prominent per-owner draft dollars (CurrentDraftDollars: this draft + the next)
 function renderOwnerDollars() {
@@ -3142,8 +3158,17 @@ function renderThisWeek() {
 
 function ensurePosscData(cb) {
   if (POSSC) { cb(); return; }
-  google.script.run.withSuccessHandler(function (d) { POSSC = d; cb(); })
-    .withFailureHandler(function () { }).getPositionalScoring();
+  if (POSSCLOADING) return;   // the lineups-page loader owns the in-flight request
+  POSSCLOADING = true;
+  google.script.run.withSuccessHandler(function (d) {
+    POSSCLOADING = false; POSSC = d; cb();
+    // if the scoring tab asked for this data while it was already in flight, render it now
+    try {
+      if (el('v-lineups') && el('v-lineups').classList.contains('on')) {
+        psWireControls_(); el('psMsg').textContent = ''; renderPossc();
+      }
+    } catch (eP) { }
+  }).withFailureHandler(function () { POSSCLOADING = false; }).getPositionalScoring();
 }
 
 // ---------- current season ----------
@@ -3197,6 +3222,9 @@ function curCompute(maxWeek) {
     var wk = Number(r[gi.Week]);
     var a = String(r[gi.Owner1] == null ? '' : r[gi.Owner1]).trim();
     var b = String(r[gi.Owner2] == null ? '' : r[gi.Owner2]).trim();
+    // blank score cells mean "not played yet", not 0-0 — skip the row entirely
+    if (String(r[gi.Score1] == null ? '' : r[gi.Score1]).trim() === '' ||
+        String(r[gi.Score2] == null ? '' : r[gi.Score2]).trim() === '') return;
     var sa = Number(r[gi.Score1]), sb = Number(r[gi.Score2]);
     if (!wk || !st[a] || !st[b] || isNaN(sa) || isNaN(sb)) return;
     if (maxWeek && wk > maxWeek) return;
@@ -3477,6 +3505,8 @@ function renderCurrent() {
     var a = String(r[gi.Owner1] == null ? '' : r[gi.Owner1]).trim();
     var b = String(r[gi.Owner2] == null ? '' : r[gi.Owner2]).trim();
     var sa = Number(r[gi.Score1]), sb = Number(r[gi.Score2]);
+    if (String(r[gi.Score1] == null ? '' : r[gi.Score1]).trim() === '' ||
+        String(r[gi.Score2] == null ? '' : r[gi.Score2]).trim() === '') return;
     if (!c.div[a] || !c.div[b] || isNaN(sa) || isNaN(sb) || c.div[a] === c.div[b]) return;
     var k = c.div[a] + '|' + c.div[b];
     dv[k] = dv[k] || [0, 0];
@@ -3712,6 +3742,7 @@ function ensureBudgets() {
     };
     renderBudgets();
     renderHomeBudgets();
+    try { renderKeepDD(); renderOwnerDollars(); } catch (eK) { }
   }).withFailureHandler(function (e) {
     BUDGETSLOADING = false;
     if (el('budgetMsg')) el('budgetMsg').textContent = 'Could not load draft dollars: ' + (e && e.message ? e.message : e);
@@ -3745,9 +3776,12 @@ function initBudPills() {
 }
 function ensureBudHist() {
   if (BUDHIST) { renderBudHist(); return; }
+  if (ensureBudHist._busy) return;
+  ensureBudHist._busy = 1;
   el('budHistTable').innerHTML = '<tbody><tr><td>Loading dollar history\u2026</td></tr></tbody>';
-  google.script.run.withSuccessHandler(function (d) { BUDHIST = d; renderBudHist(); })
+  google.script.run.withSuccessHandler(function (d) { ensureBudHist._busy = 0; BUDHIST = d; renderBudHist(); })
     .withFailureHandler(function (e) {
+      ensureBudHist._busy = 0;
       el('budHistTable').innerHTML = '<tbody><tr><td>Could not load: ' + (e && e.message ? e.message : e) + '</td></tr></tbody>';
     }).getDollarHistory();
 }
@@ -3873,7 +3907,7 @@ function thDelta_(r, fy) {
   if (r[8] && (fy === 'All years' || String(r[8]) === String(fy))) d += r[9];
   return d;
 }
-function thSumRaw_(r) { return r[10] || TSUM[r[0]] || ''; }
+function thSumRaw_(r) { return escHtml_(r[10] || TSUM[r[0]] || ''); }
 function thSum_(r) {
   return '<span class="wraptext">' + thSumRaw_(r) + '</span>';
 }
@@ -4045,7 +4079,7 @@ function ensureTpRecords() {
     .withFailureHandler(function (e) {
       TPAGGSLOADING = false;
       el('topMsg').textContent = 'Could not load player records: ' + (e && e.message ? e.message : e);
-    }).getPlayerRecords('All years', 'All owners', 'all');
+    }).getPlayerRecords({ year: 'All', owner: 'All', set: 'all' });
 }
 function renderTpRecords() {
   if (!TPAGGS) return;
@@ -4132,8 +4166,10 @@ function renderTpRecords() {
 // ---- player history ----
 var PHNAMES = null, PHCACHE = {}, PHCUR = '';
 function ensurePlayerHist() {
-  if (PHNAMES) return;
+  if (PHNAMES || ensurePlayerHist._busy) return;
+  ensurePlayerHist._busy = 1;
   google.script.run.withSuccessHandler(function (d) {
+    ensurePlayerHist._busy = 0;
     PHNAMES = d.names || [];
     el('phMsg').textContent = 'Start typing a name \u2014 ' + PHNAMES.length + ' players in league history.';
   }).withFailureHandler(function (e) {
@@ -4382,13 +4418,16 @@ function renderLineup() {
   }
   if (!missing.length) { drawAll(); return; }
   el('rsLineup').innerHTML = '<div class="note">Loading lineups\u2026</div>';
+  // sequence token: a slow response for an older selection must not overwrite the current one
+  var req = renderLineup._seq = (renderLineup._seq || 0) + 1;
   var pending = missing.length;
   missing.forEach(function (o) {
     google.script.run.withSuccessHandler(function (d) {
       LINEUPS[sw + '|' + o] = d.rows;
       pending--;
-      if (!pending) drawAll();
+      if (!pending && req === renderLineup._seq) drawAll();
     }).withFailureHandler(function (e) {
+      if (req !== renderLineup._seq) return;
       el('rsLineup').innerHTML = '<div class="note">Could not load lineup: ' + (e && e.message ? e.message : e) + '</div>';
     }).getLineup(sw, o);
   });
@@ -5136,7 +5175,7 @@ function renderConstitution() {
   }
   CONST.rows.forEach(function (r) {
     var s = String(r[m.Style] == null ? '' : r[m.Style]).trim().toUpperCase();
-    var t = String(r[m.Text] == null ? '' : r[m.Text]).trim();
+    var t = escHtml_(String(r[m.Text] == null ? '' : r[m.Text]).trim());
     if (!t || s === 'NOTE') return;
     if (!s) s = /^[IVX]+\./.test(t) ? 'H1' : 'P';
     if (s === 'ROWH' || s === 'ROW') {
