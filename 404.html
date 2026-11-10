@@ -1009,7 +1009,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2144';
+var RTB_BUILD = '1109.2148';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3750,36 +3750,76 @@ function renderDivisions() {
   // year by year
   html += '<h2>Year by year: best division</h2><div class="twrap"><table id="dhYear" class="fit"></table></div>';
   var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; });
-  html += '<div class="note">Each division cell shows record · average points per game. Division games cancel out inside a division (someone wins, someone loses), so the gaps between divisions come from cross-division matchups. 🏆 marks the league champion’s division. “Best division” = best combined win %, points per game as the tiebreaker. Regular-season games only, through ' + (years.length ? years[0] : '') + '. Tap a column header to sort.</div>';
+  html += '<div class="note">Each division shows its combined record and average points per game. Division games cancel out inside a division (someone wins, someone loses), so the gaps between divisions come from cross-division matchups. 🏆 marks the league champion’s division. “Best” = best combined win %, points per game as the tiebreaker. Regular-season games only, through ' + (years.length ? years[0] : '') + '. Tap a column header to sort.</div>';
   el('dhBody').innerHTML = html;
   // fill the three tables (sortable)
-  sortableTable('dhAll', ['Division', 'Team-seasons', 'W', 'L', 'Win %', 'Avg PF / game', 'Avg PF / season'],
+  sortableTable('dhAll', ['Division', 'W', 'L', 'Win %', 'Avg PF / game', 'Avg PF / season'],
     DIVS.map(function (d) {
       var a = agg[d], g = a.w + a.l;
-      return ['<b>' + d + '</b>', a.ts, a.w, a.l, pct(a.w, a.l),
+      return ['<b>' + d + '</b>', a.w, a.l, pct(a.w, a.l),
         g ? n1(a.pf / g) : '—', a.ts ? n1(a.pf / a.ts) : '—'];
-    }), [1, 2, 3, 4, 5, 6]);
-  sortableTable('dhHw', ['Division', 'Championships', 'Title game trips', 'Playoff berths', '1 seeds', 'Scoring titles'],
+    }), [1, 2, 3, 4, 5]);
+  sortableTable('dhHw', ['Division', 'Playoff berths', 'Scoring titles', '1 seeds', 'Title game trips', 'Championships'],
     DIVS.map(function (d) {
       var a = agg[d];
-      return ['<b>' + d + '</b>', a.ch, a.app, a.po, a.s1, a.sco];
+      return ['<b>' + d + '</b>', a.po, a.sco, a.s1, a.app, a.ch];
     }), [1, 2, 3, 4, 5]);
-  var yrRows = years.map(function (y) {
+  // year-by-year: grouped header (Record + Avg PF per division), custom sortable
+  var yrData = years.map(function (y) {
     var by = byYear[y], best = null, bestKey = [-1, -1];
     DIVS.forEach(function (d) {
       var b = by[d]; if (!b) return;
       var g = b.w + b.l, k = [g ? b.w / g : 0, g ? b.pf / g : 0];
       if (k[0] > bestKey[0] || (k[0] === bestKey[0] && k[1] > bestKey[1])) { bestKey = k; best = d; }
     });
-    return [y].concat(DIVS.map(function (d) {
-      var b = by[d]; if (!b) return '—';
-      var g = b.w + b.l, cell = b.w + '-' + b.l + ' · ' + (g ? n1(b.pf / g) : '—') + (b.champ ? ' 🏆' : '');
-      // hidden fixed-width win% prefix so the column sorts by strength, not text
-      cell = '<span class="shide">' + (g ? (b.w / g).toFixed(3) : '0') + '|</span>' + cell;
-      return d === best ? '<span class="bestdiv" style="padding:2px 7px;border-radius:8px">' + cell + '</span>' : cell;
-    })).concat(['<b>' + (best || '—') + '</b>']);
+    return { y: y, best: best, by: by };
   });
-  sortableTable('dhYear', ['Year'].concat(DIVS).concat(['Best division']), yrRows, [0, 1, 2, 3], [], 0, 1);
+  var ys = renderDivisions._ys = renderDivisions._ys || { col: 0, dir: 1 };
+  function drawDhYear() {
+    function keyOf(row, c) {
+      if (c === 0) return row.y;
+      if (c === 1) return row.best ? -DIVS.indexOf(row.best) : null;
+      var di = (c - 2) >> 1, isRec = (c - 2) % 2 === 0;
+      var b = row.by[DIVS[di]]; if (!b) return null;
+      var g = b.w + b.l;
+      return isRec ? (g ? b.w / g : 0) : (g ? b.pf / g : 0);
+    }
+    var rows = yrData.slice().sort(function (a, b) {
+      var ka = keyOf(a, ys.col), kb = keyOf(b, ys.col);
+      if (ka === null && kb === null) return 0;
+      if (ka === null) return 1;
+      if (kb === null) return -1;
+      return (kb - ka) * ys.dir;
+    });
+    function sth(label, c, extra) {
+      var arrow = ys.col === c ? (ys.dir === 1 ? ' ▼' : ' ▲') : '';
+      return '<th' + (extra || '') + '><span class="sortable" data-sc="' + c + '">' + label + arrow + '</span></th>';
+    }
+    var h = '<thead><tr>' + sth('Year', 0, ' rowspan="2"') + sth('Best', 1, ' rowspan="2"') +
+      DIVS.map(function (d) { return '<th colspan="2" style="text-align:center">' + d + '</th>'; }).join('') +
+      '</tr><tr>' +
+      DIVS.map(function (d, i) { return sth('Record', 2 + i * 2) + sth('Avg PF', 3 + i * 2); }).join('') +
+      '</tr></thead><tbody>';
+    rows.forEach(function (row) {
+      h += '<tr><td class="num"><b>' + row.y + '</b></td><td><b>' + (row.best || '—') + '</b></td>' +
+        DIVS.map(function (d) {
+          var b = row.by[d];
+          if (!b) return '<td>—</td><td>—</td>';
+          var g = b.w + b.l, hot = d === row.best ? ' bestdiv' : '';
+          return '<td class="num' + hot + '">' + b.w + '-' + b.l + (b.champ ? ' 🏆' : '') + '</td>' +
+            '<td class="num' + hot + '">' + (g ? n1(b.pf / g) : '—') + '</td>';
+        }).join('') + '</tr>';
+    });
+    el('dhYear').innerHTML = h + '</tbody>';
+    el('dhYear').querySelectorAll('span.sortable').forEach(function (sp) {
+      sp.onclick = function () {
+        var i = Number(sp.dataset.sc);
+        if (ys.col === i) ys.dir = -ys.dir; else { ys.col = i; ys.dir = 1; }
+        drawDhYear();
+      };
+    });
+  }
+  drawDhYear();
 }
 var curSub = 'standings';
 var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['scenarios', 'Playoff scenarios'],
