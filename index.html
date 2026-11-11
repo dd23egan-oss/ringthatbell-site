@@ -224,6 +224,18 @@
   .twtab td.better { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07) !important; }
   td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
   span.bestdiv { display: inline-block; }
+  /* blog */
+  .bcard { background: #fff; border: 1px solid #e2e8e3; border-radius: 12px; padding: 14px 16px; margin: 12px 0; cursor: pointer; }
+  .bcard:hover { border-color: var(--primary); }
+  .bdate { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .bpost h2 { font-size: 17px; margin: 24px 0 8px; }
+  .bpost h3 { font-size: 15px; margin: 18px 0 6px; }
+  .bpost p, .bpost li { font-size: 14px; line-height: 1.55; }
+  tr.keepflag td { background: #fdeceb !important; }
+  .keepchip { display: inline-block; background: #fbd9d6; color: #8c2f28; border-radius: 8px; padding: 1px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: .4px; white-space: nowrap; }
+  .tcard { border: 1px solid #e2e8e3; border-left: 4px solid var(--primary); border-radius: 10px; padding: 10px 12px; margin: 9px 0; background: #fafcfa; }
+  .tcard .twho { font-weight: 700; font-size: 14px; }
+  .tcard .tnote { font-size: 13px; color: #333; margin-top: 3px; }
   .odot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: baseline; }
   .rk { font-size: 10.5px; color: var(--muted); font-weight: 600; }
   .twtab .lgavg { color: var(--muted); font-weight: 500; font-size: 12.5px; }
@@ -968,6 +980,11 @@
     <div class="squadgrid" id="squadGrid"></div>
   </div>
 
+  <div class="view" id="v-blog">
+    <h1>League blog</h1>
+    <div id="blogBody"></div>
+  </div>
+
   <div class="view" id="v-constitution">
     <h1>League constitution</h1>
     <div class="note" id="constMsg"></div>
@@ -1010,7 +1027,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1109.2301';
+var RTB_BUILD = '1111.1446';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1060,7 +1077,7 @@ var SITE_BASE = /\.github\.io$/.test(location.hostname) ? '/ringthatbell-site' :
 var PAGE_SLUGS = { home: '', thisweek: 'this-week', current: 'current-season', budgets: 'draft-dollars',
   keepers: 'keeper-options', taxisquads: 'taxi-squads', devydraft: 'devy-draft', devy: 'devy-players',
   draft: 'draft-history', seasons: 'seasons', h2h: 'head-to-head', records: 'record-book',
-  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution', divisions: 'division-history',
+  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution', divisions: 'division-history', blog: 'blog',
   pickem: 'pickem', owners: 'owners' };
 function pageFromPath() {
   var p = location.pathname;
@@ -1088,16 +1105,35 @@ function routePush(page) {
 var DATA = null, AGGS = {}, SEC = null, SECLOADING = false, CONST = null, CONSTLOADING = false, SQUADS = null, SQUADSLOADING = false;
 var DI = null, DDI = null, KI = null, TDI = null;
 var lastDraft = null, lastKeep = null, POSRANK = {};
-var PAGES = [['home','Home'],['current','Current season standings'],['seasons','Seasons'],['h2h','Head to head'],['records','Records'],['topplayers','Top players'],['lineups','Historic starting lineups and scoring by positions'],
-             ['divisions','Division history'],['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper options'],['devydraft','Devy draft'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"],['pickem','Pick’em'],['owners','Owner profiles']];
+var PAGES = [['home','Home'],['current','Current season standings'],['seasons','Standings by season'],['h2h','Owner vs owner head to head record'],['records','League record book'],['topplayers','Most started and top scoring players'],['lineups','Historic starting lineups'],
+             ['divisions','Division vs division history'],['draft','Draft history'],['budgets','Current draft dollars'],['keepers','Current keeper options and prices'],['devydraft','Active devy players and picks'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['blog','Blog'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"],['pickem','Pick’em'],['owners','Owner profiles']];
 var RULES_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdtN5Oopj3cklw4TIE_nhuLOmkv2KLOzf6MyP__7paD9rSoLQ/viewform';
 // Grouped navigation: four top-level entries instead of thirteen.
 var NAVGROUPS = [
   { page: 'home', label: 'Home' },
-  { label: 'This season', items: ['thisweek', 'current', 'pickem', 'budgets', 'keepers', 'taxisquads', 'devydraft', 'rules'] },
-  { label: 'League history', items: ['owners', 'draft', 'seasons', 'divisions', 'records', 'h2h', 'topplayers', 'lineups', 'trophy'] },
-  { page: 'constitution', label: 'Constitution' }
+  { label: 'This season', items: ['thisweek', 'current', 'budgets', 'tradehist', 'keepers', 'taxisquads', 'devydraft', 'rules', 'pickem'] },
+  { label: 'League history', items: ['owners', 'draft', 'budgetsall', 'seasons', 'divisions', 'records', 'h2h', 'topplayers', 'lineups', 'trophy'] },
+  { page: 'constitution', label: 'Constitution' },
+  { page: 'blog', label: 'Blog' }
 ];
+// Menu entries that jump straight to a tab of another page.
+var NAVX = {
+  tradehist: { label: 'Trade history', go: function () { gotoBudgetsTab('trades'); } },
+  budgetsall: { label: 'Draft dollars by season', go: function () { gotoBudgetsTab('hist'); } }
+};
+function gotoBudgetsTab(bv) {
+  show('budgets');
+  initBudPills._qs = 1;   // this choice wins over any ?tab= deep link
+  BUDVIEW = bv;
+  document.querySelectorAll('#budPills .pill').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-bv') === bv); });
+  el('budgetDuoPage').style.display = bv === 'cur' ? '' : 'none';
+  el('budgetNote').style.display = bv === 'cur' ? '' : 'none';
+  el('budHist').style.display = bv === 'hist' ? 'block' : 'none';
+  el('budTrades').style.display = bv === 'trades' ? 'block' : 'none';
+  routeSetQS({ tab: bv === 'cur' ? '' : bv });
+  if (bv === 'hist') ensureBudHist();
+  if (bv === 'trades') ensureTrades();
+}
 function pageLabel(id) {
   var lab = id;
   PAGES.forEach(function (p) { if (p[0] === id) lab = p[1]; });
@@ -1205,9 +1241,10 @@ function buildNav() {
     menu.className = 'navmenu';
     g.items.forEach(function (id) {
       var ib = document.createElement('button');
-      ib.textContent = pageLabel(id); ib.dataset.page = id;
+      ib.textContent = NAVX[id] ? NAVX[id].label : pageLabel(id); ib.dataset.page = id;
       ib.onclick = function () {
         if (id === 'rules') { window.open(RULES_URL, '_blank'); closeMenus(); return; }
+        if (NAVX[id]) { NAVX[id].go(); closeMenus(); return; }
         show(id); closeMenus();
       };
       menu.appendChild(ib);
@@ -1239,9 +1276,10 @@ function buildNav() {
     g.items.forEach(function (id) {
       var mb2 = document.createElement('button');
       mb2.className = 'mobsub';
-      mb2.textContent = pageLabel(id); mb2.dataset.page = id;
+      mb2.textContent = NAVX[id] ? NAVX[id].label : pageLabel(id); mb2.dataset.page = id;
       mb2.onclick = function () {
         if (id === 'rules') { window.open(RULES_URL, '_blank'); closeMenus(); return; }
+        if (NAVX[id]) { NAVX[id].go(); closeMenus(); return; }
         show(id); closeMenus();
       };
       sec.appendChild(mb2);
@@ -1300,6 +1338,7 @@ function show(page) {
   });
   if (page === 'records') ensureAggs();
   if (page === 'divisions') renderDivisions();
+  if (page === 'blog') renderBlog();
   if (page === 'thisweek') ensureThisWeek();
   if (page === 'pickem') ensurePickem();
   if (page === 'owners') {
@@ -3114,7 +3153,7 @@ function renderKeepers() {
   }
   tdTable('taxiTable', 'taxiSection', tdSet(['Taxi']), 'Player', true, !posFiltered && (typ === 'all' || typ === 'taxi'), false, 'Taxi');
   tdTable('declTable', 'declSection', tdSet(['Declared']), 'Player', true, !posFiltered && (typ === 'all' || typ === 'devy'), true, 'Declared');
-  tdTable('devyTable', 'devySection', tdSet(['Devy']), 'Player', true, !posFiltered && (typ === 'all' || typ === 'devy'), true);
+  tdTable('devyTable', 'devySection', tdSet(['Devy']), 'Player', true, !posFiltered && (typ === 'all' || typ === 'devy'), true, 'Devy');
   tdTable('pickTable', 'pickSection', picks, 'Pick', false, !posFiltered && (typ === 'all' || typ === 'picks'), false);
   renderKselBar(o, all);
 
@@ -3681,6 +3720,155 @@ function curRowBits(o, c) {
     last10: l10.length ? '(' + l10w + '-' + (l10.length - l10w) + ')' : ''
   };
 }
+// ---------- League blog ----------
+function blogPost_w10_() {
+  function ptab(title, rows) {
+    return '<h3>' + title + '</h3><div class="twrap"><table class="fit"><thead><tr><th>Player</th><th>Owner</th><th>Franchise / Keeper</th><th class="num">This season</th><th class="num">ROS</th><th>Verdict</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr' + (r[6] ? ' class="keepflag"' : '') + '><td><b>' + r[0] + '</b></td><td>' + r[1] + '</td><td>' + r[2] +
+          '</td><td class="num">' + r[3] + '</td><td class="num">' + r[4] + '</td><td>' +
+          (r[6] ? '<span class="keepchip">Keeper — not likely to trade</span> ' : '') + r[5] + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  function tc(who, note) { return '<div class="tcard"><div class="twho">' + who + '</div><div class="tnote">' + note + '</div></div>'; }
+  var h = '';
+  h += '<p>Six playoff spots are still up for grabs, and the trade deadline hits <b>Thursday at kickoff of Thursday Night Football</b>. The market did not wait: seven deals have already gone through this week, two contenders went all-in, and a team sitting in a playoff seat started selling. Here is where the race stands and who is still available.</p>';
+
+  h += '<h2>🔥 Deadline week: the trades so far</h2>';
+  h += tc('Robbie → Brian: Josh Allen + Isaiah Likely for Bryce Young, $15 (2027) + $10 (2028)',
+    'The blockbuster. Brian swaps the league’s QB9 for its <b>QB1</b> and turns his worst position (Kyle Pitts, TE19) into Isaiah Likely, the TE3. The price: he is now $145 in 2027 dollars — five bucks above the floor. Flags fully planted.');
+  h += tc('Brendan → Ryan: Joe Burrow for Matthew Stafford + $13 (2027) + $13 (2028)',
+    'Ryan turns QB10 into the QB2 for the stretch run. The bigger story: Brendan — currently the 4 seed — traded his best player for a backup-tier bridge and $26 of dollars. That is a seller’s move from a playoff seat.');
+  h += tc('Devin → Gray: Patrick Mahomes, A.J. Brown + DeMario Douglas for $12 (2027) + $3 (2028)',
+    'Gray patches his two soft spots in one swing: Douglas (WR23 this season) and a healthy-again A.J. Brown behind Amon-Ra, plus a weekly floor at QB. He has no autobid path advantage, so this is a bet on the wildcard and the points-for race.');
+  h += tc('Chris → Ryan: DJ Moore for $11 (2027)', 'Receiver depth for the playoff run at a modest price.');
+  h += tc('Chris → Vik: Brock Purdy for $4 (2027)', 'Price of the week. The QB6 this season (22.0 a game) for four dollars — a real upgrade on Trevor Lawrence.');
+  h += tc('Devin → Brian: Rachaad White for $8 (2028)', 'Last Friday’s warm-up act. RB depth behind Bijan and Warren.');
+  h += tc('Chris → Brian: $50 FAAB for $1 (2028)', 'Brian also bought waiver ammo for the stretch. Chris is selling everything that is not nailed down.');
+
+  h += '<h2>How the playoffs work</h2>';
+  h += '<p>Six teams. The top two Premier Division teams and the Second Division winner get automatic bids, and the Third Division gets none. Two wildcards go to the best records among everyone else, and the last spot goes to the team with the most points for. The Premier winner gets a first-round bye, and the #1 seed goes to the better record of the Premier winner and the #2 seed.</p>';
+  h += '<p>Right now Brian (7-2) is the #1 seed, Ryan (6-3) is #2, Drew (6-3) is #3, Brendan (5-4) is #4, Murph (5-4) is #5 and Vik (4-5) holds #6 on points for. Tom, Devin and Chris are out and selling.</p>';
+
+  h += '<h2>Playoff contender rankings</h2>';
+  h += '<p>Rankings blend record, points for and roster quality — updated for this week’s trades. Player ranks are half-PPR through Week 9; ROS ranks are FantasyPros.</p>';
+  h += '<div class="twrap"><table class="fit"><thead><tr><th class="num">#</th><th>Owner</th><th>Division</th><th class="num">Record</th><th class="num">Avg PF</th><th>Seed now</th></tr></thead><tbody>' +
+    [[1,'Brian','Second','7-2','125.14','1 (bye)'],[2,'Ryan','Premier','6-3','122.26','2 (bye)'],[3,'Drew','Second','6-3','107.45','3'],
+     [4,'Vik','Premier','4-5','122.59','6'],[5,'Murph','Premier','5-4','115.74','5'],[6,'Gray','Third','5-4','117.70','out (7th)'],
+     [7,'Brendan','Premier','5-4','117.87','4'],[8,'John','Third','4-5','120.77','out (8th)'],[9,'Robbie','Third','4-5','114.88','out (9th)']]
+    .map(function (r) { return '<tr><td class="num"><b>' + r[0] + '</b></td><td><b>' + r[1] + '</b></td><td>' + r[2] + '</td><td class="num">' + r[3] + '</td><td class="num">' + r[4] + '</td><td>' + r[5] + '</td></tr>'; }).join('') +
+    '</tbody></table></div>';
+
+  h += '<h3>1. Brian</h3><ul>' +
+    '<li><b>Strengths:</b> Best record, best scoring (125.1), and now the league’s QB1 after the Josh Allen trade. Four top-12 receivers in Jaxon Smith-Njigba (WR1), Ja’Marr Chase (WR7), Zay Flowers (WR11) and Malik Nabers (WR12), Bijan Robinson at RB3, and Isaiah Likely (TE3) finally fixes tight end. He even restocked FAAB.</li>' +
+    '<li><b>Weaknesses:</b> There aren’t many left. RB3 is still shaky behind Warren, and he has exactly <b>$5</b> of 2027 trade room above the $140 floor, so this roster is the roster.</li></ul>';
+  h += '<h3>2. Ryan</h3><ul>' +
+    '<li><b>Strengths:</b> Added Joe Burrow (QB2, 25.6 a game) and DJ Moore this week. Kenneth Walker is RB2, CeeDee Lamb is WR2, and Trey McBride (TE1) + Sam LaPorta (TE7) is the best TE room in the league.</li>' +
+    '<li><b>Weaknesses:</b> Two straight losses. Breece Hall has played just four games, and the receiver depth behind Lamb is still names over numbers — DJ Moore is WR60 by season points.</li></ul>';
+  h += '<h3>3. Drew</h3><ul>' +
+    '<li><b>Strengths:</b> Kyren Williams is RB9, Matthew Golden WR5, Tre Tucker WR17, Tucker Kraft TE8. Four straight wins, and the Second Division race is only him and Brian among live teams.</li>' +
+    '<li><b>Weaknesses:</b> Lowest scorer among contenders at 107.45, so 6-3 leans on matchup luck. De’Von Achane and Michael Pittman have barely played. He stood pat at the deadline while rivals loaded up.</li></ul>';
+  h += '<h3>4. Vik</h3><ul>' +
+    '<li><b>Strengths:</b> Second in the league in scoring with the best RB room going — Bucky Irving (RB5), D’Andre Swift (RB8), Derrick Henry (RB11) — plus Drake London, Garrett Wilson, Pickens and Jefferson. Grabbing Brock Purdy (QB6) for $4 quietly fixed his weakest spot. Leads the 6-seed points race by 16.35 over John.</li>' +
+    '<li><b>Weaknesses:</b> 4-5 means he probably rides the points-for route, and one bad week opens the door for John.</li></ul>';
+  h += '<h3>5. Murph</h3><ul>' +
+    '<li><b>Strengths:</b> Jordan Love is QB3, Tee Higgins WR6, Chuba Hubbard RB12, Ashton Jeanty RB15, Parker Washington WR16. Holds the second wildcard and still has a Premier autobid path.</li>' +
+    '<li><b>Weaknesses:</b> Mark Andrews is TE29, Saquon Barkley is RB35 on a tag, and he did nothing at the deadline while Gray, Ryan and Brian all got better.</li></ul>';
+  h += '<h3>6. Gray</h3><ul>' +
+    '<li><b>Strengths:</b> Jahmyr Gibbs is RB1 and Christian McCaffrey RB4, with Amon-Ra St. Brown at WR8 — and the Devin trade just added DeMario Douglas (WR23), a lottery ticket in A.J. Brown and a Mahomes floor at QB. Three straight wins.</li>' +
+    '<li><b>Weaknesses:</b> No autobid for the Third Division, so it’s a wildcard or the points-for race, where he sits 44.03 back of Vik. The buys say he knows it.</li></ul>';
+  h += '<h3>7. Brendan</h3><ul>' +
+    '<li><b>Strengths:</b> Still holds the 4 seed, still has Puka Nacua (WR4, 19.8 a game) and Travis Kelce (TE6), and now sits on $227 of 2027 dollars.</li>' +
+    '<li><b>Weaknesses:</b> He traded Joe Burrow for Matthew Stafford while <i>in</i> a playoff seat, the backfield is still a mess (Chase Brown RB20 is the best of it), and every name on his roster should be considered available. Hard to rank a soft seller ahead of the teams buying.</li></ul>';
+  h += '<h3>8. John</h3><ul>' +
+    '<li><b>Strengths:</b> Fourth in scoring (120.77) with Brock Bowers (TE2, 17.4 a game) and George Kittle (TE4), Drake Maye at QB4, Chris Olave WR9 and Luther Burden WR10. Only 16.35 behind Vik for the sixth seed.</li>' +
+    '<li><b>Weaknesses:</b> 4-5 with no autobid, middling RBs (Stevenson RB17, Judkins RB21), and Rashee Rice at WR50. He’s the market’s swing piece: buyer if he believes, seller if Thursday goes badly.</li></ul>';
+  h += '<h3>9. Robbie</h3><ul>' +
+    '<li><b>Strengths:</b> Javonte Williams is RB6 and Harold Fannin TE5, and he banked $25 of future dollars in the Allen deal.</li>' +
+    '<li><b>Weaknesses:</b> Four straight losses, 69.39 points out of the last spot, and he just traded his QB1 and TE1. That’s a team playing for 2027 — which makes the rest of his roster very available.</li></ul>';
+
+  h += '<h2>Top trade candidates from the sellers</h2>';
+  h += '<p>The sellers’ market is <b>Devin, Tom and Chris</b> (eliminated), <b>Robbie</b> (sold Allen and Likely), <b>Brendan</b> (sold Burrow from the 4 seed) and <b>John</b> if Thursday breaks wrong. Red rows are players their owners should — and probably will — keep. Note what’s already gone: A.J. Brown, DeMario Douglas, Mahomes, DJ Moore, Purdy and Burrow all moved this week.</p>' +
+    '<p style="font-size:12.5px;color:var(--muted)">“This season” = half-PPR positional rank through Week 9. ROS = FantasyPros rest-of-season rank. Keeper price = cost + 10% + $5; franchise = cost, no fee.</p>';
+  h += ptab('Quarterbacks', [
+    ['Drake Maye', 'John', '2026 Franchise — can’t be kept', 'QB4', 'QB4', 'Rental only, but the best one out there. John’s biggest chip if he sells.', false],
+    ['Dak Prescott', 'Tom', '$2 / $7', 'QB7', 'QB9', 'QB7 for seven bucks.', true],
+    ['Bryce Young', 'Robbie', '$2 / $7', 'QB9', 'QB15', 'Just landed in the Allen deal; fine rental if Robbie flips him again.', false],
+    ['Matthew Stafford', 'Brendan', '$3 / $8', 'QB10', 'QB13', 'Cheap bridge with a keepable tag.', false],
+    ['Jalen Hurts', 'Chris', '$12 / $18', 'QB28 (5 gms)', '—', 'Injury lottery ticket; unranked ROS.', false]]);
+  h += ptab('Running backs', [
+    ['Javonte Williams', 'Robbie', '$17 / $24', 'RB6', 'RB6', 'The best back actually available. Pay up.', false],
+    ['James Cook III', 'Chris', '$38 / $47', 'RB7', 'RB4', 'Elite now and ROS.', true],
+    ['Jonathan Taylor', 'Chris', '$56 / $67', 'RB10', 'RB11', 'Priced like a franchise piece because he is one.', true],
+    ['Chase Brown', 'Brendan', '$15 / $22', 'RB20', 'RB14', 'Best value RB on the market — ROS ranks him above his price.', false],
+    ['Tony Pollard', 'Devin', '$21 / $28', 'RB16', 'RB17', 'Best pure RB2 rental on the board at a fair keeper price.', false],
+    ['Rhamondre Stevenson', 'John', '$17 / $24', 'RB17', 'RB22', 'Sell while the season rank still looks this good.', false],
+    ['Quinshon Judkins', 'John', '$8 / $14', 'RB21', 'RB25', 'Too cheap to deal unless someone overpays.', true],
+    ['Josh Jacobs', 'Brendan', '$33 / $41', 'RB49 (3 gms)', 'RB20', 'Buy-low brand name — ROS says the talent is intact.', false],
+    ['Cam Skattebo', 'Robbie', '2026 Franchise — can’t be kept', 'RB26', 'RB26', 'Rental only.', false],
+    ['Omarion Hampton', 'Devin', '$41 / $50', 'RB28', 'RB34', 'Fade. Weak season, weaker ROS, big price.', false],
+    ['Rico Dowdle', 'Robbie', '$9 / $15', 'RB50 (5 gms)', 'RB33', 'Recent volume is real; modest buy at a modest price.', false]]);
+  h += ptab('Wide receivers', [
+    ['Puka Nacua', 'Brendan', '$58 / $69', 'WR4', 'WR9', 'The headliner. With Brendan selling, the best player plausibly available at the deadline.', false],
+    ['Christian Watson', 'Chris', '$21 / $28', 'WR3', 'WR6', 'WR3 season at a WR30 price.', true],
+    ['Chris Olave', 'John', '$12 / $18', 'WR9', 'WR10', 'Cheap tag on a WR1 season.', true],
+    ['Tetairoa McMillan', 'Tom', '$14 / $20', 'WR13', 'WR17', 'Young, producing, cheap.', true],
+    ['Denzel Boston', 'Tom', '$21 / $28', 'WR21', 'WR32', 'Sell-high — ROS cools on him.', false],
+    ['Carnell Tate', 'Tom', '$3 / $8', 'WR39', 'WR24', 'ROS darling at $8.', true],
+    ['Rashee Rice', 'John', '$35 / $44', 'WR50 (6 gms)', 'WR21', 'Buy the ROS rank, not the season rank — but $44 is pricey.', false],
+    ['DeVonta Smith', 'Robbie', '$39 / $48', 'WR45 (4 gms)', 'WR26', 'Buy if healthy; the price is real.', false],
+    ['DK Metcalf', 'Robbie', '$18 / $25', 'WR36', 'WR31', 'Modest value, easy add.', false],
+    ['Jaylen Waddle', 'Robbie', '2026 Franchise — can’t be kept', 'WR33', 'WR34', 'Rental only.', false],
+    ['Terry McLaurin', 'Brendan', '$28 / $36', 'WR78 (5 gms)', '—', 'Name over numbers; unranked ROS. Fade.', false],
+    ['Marvin Harrison Jr.', 'Tom', '$20 / $27', 'WR88', 'WR57', 'Not worth the price.', false],
+    ['Courtland Sutton', 'Chris', '$18 / $25', 'WR56', 'WR56', 'Depth only.', false]]);
+  h += ptab('Tight ends', [
+    ['Brock Bowers', 'John', '$60 / $71', 'TE2', 'TE1', 'Elite rental; the $71 tag caps his keeper value, so he’s a win-now piece.', false],
+    ['Colston Loveland', 'Devin', '$4 / $9', 'TE16', 'TE4', 'The buy of the deadline — FantasyPros has him TE4 the rest of the way at a $9 keeper.', false],
+    ['Harold Fannin Jr.', 'Robbie', '$13 / $19', 'TE5', 'TE9', 'Real production at a fair price.', false],
+    ['Travis Kelce', 'Brendan', '$7 / $13', 'TE6', 'TE11', 'Cheap veteran points for a contender.', false],
+    ['Dallas Goedert', 'Robbie', '$6 / $12', 'TE19', 'TE14', 'Depth.', false],
+    ['Hunter Henry', 'Tom', '$3 / $8', 'TE17', 'TE18', 'Streamer with a cheap tag.', false]]);
+
+  h += '<h2>Trade rules and draft-dollar room</h2>';
+  h += '<p>Draft dollars can be traded no more than two years ahead, owners cannot go below $140 at any point, and dollar-for-dollar swaps are not allowed. Conditional trades are fine — future dollars tied to yards or a fantasy finish — as long as there is no buy-back clause. Owners can sit above $285 but must be at or under it by the draft.</p>';
+  h += '<p>After this week’s spending spree, the 2027 ledger: <b>Devin and Tom $237</b>, <b>Brendan $227</b>, Chris $216, Robbie $215, Drew and Murph $200, John $195, Vik $186, Gray $183, <b>Ryan $169</b> and <b>Brian $145</b> — five dollars above the floor. The sellers now hold the money, which is exactly how a deadline should look. For 2028: Devin $236, Brendan $213, Robbie $210, most of the field at or near $200, Ryan $187 and Brian $156.</p>';
+
+  h += '<h2>Sources</h2><ul style="font-size:13px">' +
+    '<li>FantasyPros rest-of-season rankings (Nov. 2026 export) for all ROS position ranks</li>' +
+    '<li>FantasyPros half-PPR scoring through Week 9 for season position ranks</li>' +
+    '<li>League trade log, keeper/franchise prices and draft-dollar balances from the league database</li></ul>';
+  return h;
+}
+var BLOG_POSTS = [{
+  id: 'week10-trade-deadline',
+  date: 'November 11, 2026',
+  title: 'Week 10 playoff race & trade deadline guide',
+  teaser: 'Seven trades in deadline week: Brian goes all-in for Josh Allen, Ryan lands Burrow, Brendan starts selling from the 4 seed. The full playoff-race rankings and who’s still available before Thursday.',
+  html: blogPost_w10_
+}];
+function renderBlog() {
+  var pid = routeGetQS('post'), post = null;
+  BLOG_POSTS.forEach(function (b) { if (b.id === pid) post = b; });
+  var box = el('blogBody');
+  if (!post) {
+    box.innerHTML = BLOG_POSTS.map(function (b) {
+      return '<div class="bcard" data-bid="' + b.id + '"><div class="bdate">' + b.date + '</div>' +
+        '<div style="font-size:17px;font-weight:800;margin:3px 0">' + b.title + '</div>' +
+        '<div style="font-size:13.5px;color:#444">' + b.teaser + '</div>' +
+        '<div style="margin-top:6px;color:var(--primary);font-weight:700;font-size:13px">Read the post →</div></div>';
+    }).join('');
+    box.querySelectorAll('.bcard').forEach(function (c2) {
+      c2.onclick = function () { routeSetQS({ post: c2.dataset.bid }); renderBlog(); window.scrollTo(0, 0); };
+    });
+  } else {
+    var body = typeof post.html === 'function' ? (post._h = post._h || post.html()) : post.html;
+    box.innerHTML = '<button class="pill" id="blogBack" style="margin-bottom:4px">← All posts</button>' +
+      '<div class="bpost"><div class="bdate">' + post.date + '</div><h2 style="margin:4px 0 2px;font-size:20px">' + post.title + '</h2>' + body + '</div>';
+    el('blogBack').onclick = function () { routeSetQS({ post: '' }); renderBlog(); window.scrollTo(0, 0); };
+  }
+}
+
 // ---------- Division history page ----------
 var dhSub = 'cur';
 var DHTABS = [['cur', 'Premier · Second · Third (2016–now)'], ['old', 'East · Central · West (2014–15)']];
