@@ -105,19 +105,23 @@
   .champCard.silver .cap { background: linear-gradient(90deg, #7f8a94, #b9c2cb); }
   .champCard.bronze .cap { background: linear-gradient(90deg, #7c4a1e, #b97f43); }
   /* compact champion strip */
-  .champStrip.small { gap: 10px; }
-  .champStrip.small .champCard.side { margin-top: 20px; }
-  .champStrip.small img.face, .champStrip.small .facefb { width: 56px; height: 56px; font-size: 20px; }
-  .champStrip.small .champCard.center img.face, .champStrip.small .champCard.center .facefb { width: 84px; height: 84px; font-size: 28px; }
-  .champStrip.small .who { font-size: 16px; }
-  .champStrip.small .champCard.center .who { font-size: 20px; }
-  .champStrip.small .cap { font-size: 10px; padding: 6px 10px; }
-  .champStrip.small .champCard.center .cap { font-size: 11px; padding: 7px 10px; }
-  .champStrip.small .stats .v { font-size: 14px; }
+  .champStrip.small { gap: 8px; }
+  .champStrip.small .champCard.side { margin-top: 14px; }
+  .champStrip.small .champCard img.face, .champStrip.small .champCard .facefb { width: 42px; height: 42px; font-size: 15px; }
+  .champStrip.small .champCard.center img.face, .champStrip.small .champCard.center .facefb { width: 62px; height: 62px; font-size: 21px; }
+  .champStrip.small .champCard .who { font-size: 13.5px; }
+  .champStrip.small .champCard.center .who { font-size: 16px; }
+  .champStrip.small .champCard .cap { font-size: 9px; padding: 4px 8px; letter-spacing: .8px; }
+  .champStrip.small .champCard.center .cap { font-size: 10px; padding: 5px 8px; }
+  .champStrip.small .champCard .sub { font-size: 11px; }
+  .champStrip.small .champCard .stats div { padding: 6px 5px; }
+  .champStrip.small .champCard .stats .v { font-size: 12.5px; }
+  .champStrip.small .champCard .stats .k { font-size: 9px; }
   /* home quick links */
-  .qlinks { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
-  .qlinks button { background: var(--primary); color: #fff; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 700; font-size: 13.5px; cursor: pointer; font-family: inherit; }
-  .qlinks button:hover { filter: brightness(1.12); }
+  .qlinks { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 14px; max-width: 560px; }
+  .qlinks button { display: flex; align-items: center; gap: 11px; background: #fff; color: #1c2b20; border: 1px solid #dfe7e0; border-radius: 12px; padding: 12px 15px; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .qlinks button::after { content: '\203A'; margin-left: auto; color: var(--primary); font-size: 19px; font-weight: 800; line-height: 1; }
+  .qlinks button:hover { border-color: var(--primary); background: #f5faf6; }
   @media (max-width: 700px) {
     .hero { flex-direction: column; text-align: center; gap: var(--s3); padding: var(--s4) var(--s3); }
     .hero .big { font-size: 22px; }
@@ -1052,7 +1056,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1111.1512';
+var RTB_BUILD = '1111.1704';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3776,12 +3780,10 @@ function blogPost_w10_() {
 
   h += '<h2>Deadline week, by the numbers</h2>';
   h += '<p>Some years the deadline fell in Week 9, some in Week 10, so for every season this counts the trades made in the seven days ending with the last trade of that regular season.</p>';
-  h += '<div class="twrap"><table class="fit"><thead><tr><th class="num">Year</th><th>Last trade of the season</th><th class="num">Deadline-week trades</th></tr></thead><tbody>' +
-    [['2026','Nov 10 (so far — deadline is Thursday)','7'],['2025','Nov 1 (Week 9)','4'],['2024','Nov 5 (Week 10)','8'],
-     ['2023','Nov 9 (Week 10)','12'],['2022','Nov 10 (Week 10)','6'],['2021','Nov 9 (Week 10)','3'],
-     ['2020','Nov 5 (Week 9)','7'],['2019','Oct 31 (Week 9)','9'],['2018','Oct 31 (Week 9)','1'],
-     ['2017','Nov 8 (Week 9)','4'],['2016','Nov 17 (Week 11)','5']]
-    .map(function (r, i2) { return '<tr' + (i2 === 0 ? ' class="qrow"' : '') + '><td class="num"><b>' + r[0] + '</b></td><td>' + r[1] + '</td><td class="num"><b>' + r[2] + '</b></td></tr>'; }).join('') +
+  h += '<div class="twrap"><table class="fit"><thead><tr><th class="num">Year</th><th class="num">Deadline-week trades</th></tr></thead><tbody>' +
+    [['2026','7 (so far — deadline is Thursday)'],['2025','4'],['2024','8'],['2023','12'],['2022','6'],['2021','3'],
+     ['2020','7'],['2019','9'],['2018','1'],['2017','4'],['2016','5']]
+    .map(function (r, i2) { return '<tr' + (i2 === 0 ? ' class="qrow"' : '') + '><td class="num"><b>' + r[0] + '</b></td><td class="num"><b>' + r[1] + '</b></td></tr>'; }).join('') +
     '</tbody></table></div>' +
     '<p>Seven trades with two days still on the clock already makes this the third-busiest deadline week of the league’s history — the record is 2023’s twelve. Two more deals and it’s a tie for second with 2024; five more and 2026 takes the crown.</p>';
 
@@ -3834,7 +3836,7 @@ function blogPost_w10_() {
     ['Jalen Hurts', '', 'Chris', '$12 / $18', 'QB28 (5 gms)', '—']],
     'Maye is a pure rental and John’s biggest chip if he sells. Hurts is an injury lottery ticket, unranked rest-of-season.');
   h += ptab('Running backs', [
-    ['Javonte Williams', '', 'Robbie', '$17 / $24', 'RB6', 'RB6'],
+    ['Javonte Williams', 'Potential keeper', 'Robbie', '$17 / $24', 'RB6', 'RB6'],
     ['James Cook III', 'Potential keeper', 'Chris', '$38 / $47', 'RB7', 'RB4'],
     ['Jonathan Taylor', 'Potential keeper', 'Chris', '$56 / $67', 'RB10', 'RB11'],
     ['Chase Brown', 'Potential keeper', 'Brendan', '$15 / $22', 'RB20', 'RB14'],
@@ -3854,10 +3856,8 @@ function blogPost_w10_() {
     ['Denzel Boston', '', 'Tom', '$21 / $28', 'WR21', 'WR32'],
     ['Carnell Tate', 'Potential keeper', 'Tom', '$3 / $8', 'WR39', 'WR24'],
     ['Rashee Rice', '', 'John', '$35 / $44', 'WR50 (6 gms)', 'WR21'],
-    ['DeVonta Smith', '', 'Robbie', '$39 / $48', 'WR45 (4 gms)', 'WR26'],
     ['DK Metcalf', '', 'Robbie', '$18 / $25', 'WR36', 'WR31'],
     ['Jaylen Waddle', '', 'Robbie', '2026 Franchise — can’t be kept', 'WR33', 'WR34'],
-    ['Terry McLaurin', '', 'Brendan', '$28 / $36', 'WR78 (5 gms)', '—'],
     ['Marvin Harrison Jr.', '', 'Tom', '$20 / $27', 'WR88', 'WR57'],
     ['Courtland Sutton', '', 'Chris', '$18 / $25', 'WR56', 'WR56']],
     'Nacua is the headliner with an asterisk: he’s hurt and may not be back until Week 14–15, so he’s a buy for the playoff rounds, not the stretch run. Rice is a bet on the FantasyPros ROS rank over the season rank.');
