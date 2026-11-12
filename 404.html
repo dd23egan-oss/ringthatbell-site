@@ -1056,7 +1056,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1111.1704';
+var RTB_BUILD = '1111.1959';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3794,8 +3794,7 @@ function blogPost_w10_() {
      [4,'Vik','Premier','4-5','122.59','6','77%','3rd'],[5,'Murph','Premier','5-4','115.74','5','43%','2nd'],[6,'Gray','Third','5-4','117.70','out (7th)','73%','12th'],
      [7,'Brendan','Premier','5-4','117.87','4','66%','8th'],[8,'John','Third','4-5','120.77','out (8th)','68%','5th'],[9,'Robbie','Third','4-5','114.88','out (9th)','21%','9th']]
     .map(function (r) { return '<tr><td class="num"><b>' + r[0] + '</b></td><td><b>' + r[1] + '</b></td><td>' + r[2] + '</td><td class="num">' + r[3] + '</td><td class="num">' + r[4] + '</td><td>' + r[5] + '</td><td class="num"><b>' + r[6] + '</b></td><td class="num">' + r[7] + '</td></tr>'; }).join('') +
-    '</tbody></table></div>' +
-    '<p style="font-size:12.5px;color:var(--muted)">Playoff odds: 20,000 simulations of the remaining schedule (two out-of-division games, then the Week 12–14 division rematches) using each team’s week-to-week scoring so far — the sim doesn’t know about this week’s trades, so mentally bump the buyers up and the sellers down. Remaining SOS ranks the average scoring of each team’s remaining opponents, 1st = hardest road. Murph and Ryan close against the league’s toughest slates; Gray and Drew get the softest.</p>';
+    '</tbody></table></div>';
 
   h += '<h3>1. Brian</h3><ul>' +
     '<li><b>Strengths:</b> Best record, best scoring (125.1), and now the league’s QB1 after the Josh Allen trade. Four top-12 receivers in Jaxon Smith-Njigba (WR1), Ja’Marr Chase (WR7), Zay Flowers (WR11) and Malik Nabers (WR12), Bijan Robinson at RB3, and Isaiah Likely (TE3) finally fixes tight end. He even restocked FAAB.</li>' +
@@ -3826,8 +3825,7 @@ function blogPost_w10_() {
     '<li><b>Weaknesses:</b> Four straight losses, 69.39 points out of the last spot, and he just traded his QB1 and TE1. That’s a team playing for 2027 — which makes the rest of his roster very available.</li></ul>';
 
   h += '<h2>Top trade candidates from the sellers</h2>';
-  h += '<p>The sellers’ market is <b>Devin, Tom and Chris</b> (eliminated), <b>Robbie</b> (sold Allen and Likely), <b>Brendan</b> (sold Burrow from the 4 seed) and <b>John</b> if Thursday breaks wrong. Note what’s already gone: A.J. Brown, DeMario Douglas, Mahomes, DJ Moore, Purdy and Burrow all moved this week.</p>' +
-    '<p style="font-size:12.5px;color:var(--muted)">“This season” = half-PPR positional rank through Week 9. ROS = FantasyPros rest-of-season rank. Keeper price = cost + 10% + $5; franchise = cost, no fee. “Potential keeper” marks a price-to-production combination the owner probably keeps rather than trades.</p>';
+  h += '<p>The sellers’ market is <b>Devin, Tom and Chris</b> (eliminated), <b>Robbie</b> (sold Allen and Likely), <b>Brendan</b> (sold Burrow from the 4 seed) and <b>John</b> if Thursday breaks wrong. Note what’s already gone: A.J. Brown, DeMario Douglas, Mahomes, DJ Moore, Purdy and Burrow all moved this week.</p>';
   h += ptab('Quarterbacks', [
     ['Drake Maye', '', 'John', '2026 Franchise — can’t be kept', 'QB4', 'QB4'],
     ['Dak Prescott', 'Potential keeper', 'Tom', '$2 / $7', 'QB7', 'QB9'],
@@ -3870,11 +3868,6 @@ function blogPost_w10_() {
     ['Hunter Henry', '', 'Tom', '$3 / $8', 'TE17', 'TE18']],
     'Bowers is the elite rental — the $71 tag caps his keeper value. Loveland is the quiet buy of the deadline: TE4 the rest of the way on a $9 keeper.');
 
-  h += '<h2>Sources</h2><ul style="font-size:13px">' +
-    '<li>FantasyPros rest-of-season rankings (Nov. 2026 export) for all ROS position ranks</li>' +
-    '<li>FantasyPros half-PPR scoring through Week 9 for season position ranks</li>' +
-    '<li>Playoff odds: 20,000-season simulation of the remaining schedule from each team’s weekly scoring to date</li>' +
-    '<li>League trade log, keeper/franchise prices and draft-dollar balances from the league database</li></ul>';
   return h;
 }
 var BLOG_POSTS = [{
