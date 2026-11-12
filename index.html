@@ -1056,7 +1056,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1111.1959';
+var RTB_BUILD = '1111.2004';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3760,7 +3760,7 @@ function blogPost_w10_() {
       rows.map(function (r) {
         return '<tr><td><b>' + r[0] + '</b>' + (r[1] ? ' <span class="keepchip">' + r[1] + '</span>' : '') +
           '</td><td>' + r[2] + '</td><td>' + r[3] + '</td><td class="num">' + r[4] + '</td><td class="num">' + r[5] + '</td></tr>';
-      }).join('') + '</tbody></table></div>' + (after ? '<p style="font-size:13px;color:#444;margin-top:4px">' + after + '</p>' : '');
+      }).join('') + '</tbody></table></div>';
   }
   function tc(who, note) { return '<div class="tcard"><div class="twho">' + who + '</div><div class="tnote">' + note + '</div></div>'; }
   var h = '';
@@ -3825,14 +3825,13 @@ function blogPost_w10_() {
     '<li><b>Weaknesses:</b> Four straight losses, 69.39 points out of the last spot, and he just traded his QB1 and TE1. That’s a team playing for 2027 — which makes the rest of his roster very available.</li></ul>';
 
   h += '<h2>Top trade candidates from the sellers</h2>';
-  h += '<p>The sellers’ market is <b>Devin, Tom and Chris</b> (eliminated), <b>Robbie</b> (sold Allen and Likely), <b>Brendan</b> (sold Burrow from the 4 seed) and <b>John</b> if Thursday breaks wrong. Note what’s already gone: A.J. Brown, DeMario Douglas, Mahomes, DJ Moore, Purdy and Burrow all moved this week.</p>';
+  h += '<p>The sellers’ market is <b>Devin, Tom and Chris</b> (eliminated), <b>Robbie</b> (sold Allen and Likely), <b>Brendan</b> (sold Burrow from the 4 seed) and <b>John</b> if Thursday breaks wrong. Note what’s already gone: A.J. Brown, DeMario Douglas, Mahomes, DJ Moore, Purdy and Burrow all moved this week. One asterisk on the headliner: <b>Puka Nacua is hurt and may not be back until Week 14–15</b>, so he’s a buy for the playoff rounds, not the stretch run.</p>';
   h += ptab('Quarterbacks', [
     ['Drake Maye', '', 'John', '2026 Franchise — can’t be kept', 'QB4', 'QB4'],
     ['Dak Prescott', 'Potential keeper', 'Tom', '$2 / $7', 'QB7', 'QB9'],
     ['Bryce Young', '', 'Robbie', '$2 / $7', 'QB9', 'QB15'],
     ['Matthew Stafford', '', 'Brendan', '$3 / $8', 'QB10', 'QB13'],
-    ['Jalen Hurts', '', 'Chris', '$12 / $18', 'QB28 (5 gms)', '—']],
-    'Maye is a pure rental and John’s biggest chip if he sells. Hurts is an injury lottery ticket, unranked rest-of-season.');
+    ['Jalen Hurts', '', 'Chris', '$12 / $18', 'QB28 (5 gms)', '—']]);
   h += ptab('Running backs', [
     ['Javonte Williams', 'Potential keeper', 'Robbie', '$17 / $24', 'RB6', 'RB6'],
     ['James Cook III', 'Potential keeper', 'Chris', '$38 / $47', 'RB7', 'RB4'],
@@ -3844,8 +3843,7 @@ function blogPost_w10_() {
     ['Josh Jacobs', '', 'Brendan', '$33 / $41', 'RB49 (3 gms)', 'RB20'],
     ['Cam Skattebo', '', 'Robbie', '2026 Franchise — can’t be kept', 'RB26', 'RB26'],
     ['Omarion Hampton', '', 'Devin', '$41 / $50', 'RB28', 'RB34'],
-    ['Rico Dowdle', '', 'Robbie', '$9 / $15', 'RB50 (5 gms)', 'RB33']],
-    'Javonte is the best back actually available. Chase Brown is the value play — ROS ranks him well above his $22 tag — and Jacobs is the buy-low brand name if the three missed games scared his price down.');
+    ['Rico Dowdle', '', 'Robbie', '$9 / $15', 'RB50 (5 gms)', 'RB33']]);
   h += ptab('Wide receivers', [
     ['Puka Nacua', 'Potential return', 'Brendan', '$58 / $69', 'WR4 (7 gms)', 'WR9'],
     ['Christian Watson', 'Potential keeper', 'Chris', '$21 / $28', 'WR3', 'WR6'],
@@ -3857,16 +3855,14 @@ function blogPost_w10_() {
     ['DK Metcalf', '', 'Robbie', '$18 / $25', 'WR36', 'WR31'],
     ['Jaylen Waddle', '', 'Robbie', '2026 Franchise — can’t be kept', 'WR33', 'WR34'],
     ['Marvin Harrison Jr.', '', 'Tom', '$20 / $27', 'WR88', 'WR57'],
-    ['Courtland Sutton', '', 'Chris', '$18 / $25', 'WR56', 'WR56']],
-    'Nacua is the headliner with an asterisk: he’s hurt and may not be back until Week 14–15, so he’s a buy for the playoff rounds, not the stretch run. Rice is a bet on the FantasyPros ROS rank over the season rank.');
+    ['Courtland Sutton', '', 'Chris', '$18 / $25', 'WR56', 'WR56']]);
   h += ptab('Tight ends', [
     ['Brock Bowers', '', 'John', '$60 / $71', 'TE2', 'TE1'],
     ['Colston Loveland', 'Potential keeper', 'Devin', '$4 / $9', 'TE16', 'TE4'],
     ['Harold Fannin Jr.', 'Potential keeper', 'Robbie', '$13 / $19', 'TE5', 'TE9'],
     ['Travis Kelce', '', 'Brendan', '$7 / $13', 'TE6', 'TE11'],
     ['Dallas Goedert', '', 'Robbie', '$6 / $12', 'TE19', 'TE14'],
-    ['Hunter Henry', '', 'Tom', '$3 / $8', 'TE17', 'TE18']],
-    'Bowers is the elite rental — the $71 tag caps his keeper value. Loveland is the quiet buy of the deadline: TE4 the rest of the way on a $9 keeper.');
+    ['Hunter Henry', '', 'Tom', '$3 / $8', 'TE17', 'TE18']]);
 
   return h;
 }
