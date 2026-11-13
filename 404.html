@@ -1072,7 +1072,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1113.1143';
+var RTB_BUILD = '1113.1145';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -6448,7 +6448,7 @@ function dvHeld(v) {
   var low = String(v == null ? '' : v).toLowerCase();
   return low.indexOf('college') > -1 || low === 'declared';
 }
-var DDTABS = [['picks', 'Upcoming picks'], ['roster', 'Active devy players'], ['history', 'Pick history'], ['records', 'Report card']];
+var DDTABS = [['picks', 'Upcoming picks'], ['roster', 'Active devy players'], ['history', 'All picks'], ['records', 'Report card']];
 function initDvTabs() {
   if (el('ddPills').innerHTML) return;
   el('ddPills').innerHTML = DDTABS.map(function (t) {
