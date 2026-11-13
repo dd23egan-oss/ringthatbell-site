@@ -242,6 +242,15 @@
   .twtab td.better { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07) !important; }
   td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
   span.bestdiv { display: inline-block; }
+  /* schedule page */
+  tr.wkhead td { background: #eef3ee; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: #2d5939; padding: 7px 10px; }
+  .sw { color: var(--primary); font-weight: 800; }
+  .sl { color: #b3261e; font-weight: 700; }
+  .schcards { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+  .schcard { background: #fff; border: 1px solid #dfe7e0; border-radius: 12px; padding: 10px 14px; min-width: 104px; }
+  .schcard .k { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); font-weight: 700; }
+  .schcard .v { font-size: 18px; font-weight: 800; margin-top: 2px; }
+  .schcard .s { font-size: 11px; color: var(--muted); margin-top: 1px; }
   /* blog */
   .bcard { background: #fff; border: 1px solid #e2e8e3; border-radius: 12px; padding: 14px 16px; margin: 12px 0; cursor: pointer; }
   .bcard:hover { border-color: var(--primary); }
@@ -575,6 +584,16 @@
     </div>
   </div>
 
+  <div class="view" id="v-schedule">
+    <h1>Schedule</h1>
+    <div class="controls">
+      <label for="selSchYear">Year</label><select id="selSchYear"></select>
+      <label for="selSchOwner">Owner</label><select id="selSchOwner"></select>
+    </div>
+    <div class="schcards" id="schCards" style="display:none"></div>
+    <div id="schBody"></div>
+  </div>
+
   <div class="view" id="v-divisions">
     <h1>Division history</h1>
     <div class="pills" id="dhPills"></div>
@@ -593,29 +612,10 @@
 
   <div class="view" id="v-records">
     <h1>Record book</h1>
+    <div class="pills" id="recPills"></div>
     <div class="controls">
       <label for="selRec">Record</label>
-      <select id="selRec">
-        <option value="career">Career standings</option>
-        <option value="bestseason">Best regular seasons</option>
-        <option value="highgame">Highest scores in a week</option>
-        <option value="lowgame">Lowest scores in a week</option>
-        <option value="highmatch">Highest scoring matchups</option>
-        <option value="lowmatch">Lowest scoring matchups</option>
-        <option value="blowout">Biggest blowouts</option>
-        <option value="closest">Closest games</option>
-        <option value="thresholds">Weeks over 150 / 120 / under 100</option>
-        <option value="streakwl">Streaks: wins &amp; losses</option>
-        <option value="streak100">Streaks: 100-point games</option>
-        <option value="streak120">Streaks: 120-point games</option>
-        <option value="streakseason">Streaks: seasons</option>
-        <option value="allplay">All-play: career</option>
-        <option value="allplayyear">All-play: best seasons</option>
-        <option value="postreaks">Playoff streaks &amp; droughts</option>
-        <option value="bestloss">Highest-scoring losses</option>
-        <option value="luckywin">Lowest-scoring wins</option>
-        <option value="lossseason">Best losing seasons</option>
-      </select>
+      <select id="selRec"></select>
       <span class="cwrap" id="recFilters" style="display:none">
         <label for="selRYear">Year</label><select id="selRYear"></select>
         <label for="selROwner">Owner</label><select id="selROwner"></select>
@@ -1056,7 +1056,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1111.2004';
+var RTB_BUILD = '1113.0841';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1106,7 +1106,7 @@ var SITE_BASE = /\.github\.io$/.test(location.hostname) ? '/ringthatbell-site' :
 var PAGE_SLUGS = { home: '', thisweek: 'this-week', current: 'current-season', budgets: 'draft-dollars',
   keepers: 'keeper-options', taxisquads: 'taxi-squads', devydraft: 'devy-draft', devy: 'devy-players',
   draft: 'draft-history', seasons: 'seasons', h2h: 'head-to-head', records: 'record-book',
-  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution', divisions: 'division-history', blog: 'blog',
+  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution', divisions: 'division-history', blog: 'blog', schedule: 'schedule',
   pickem: 'pickem', owners: 'owners' };
 function pageFromPath() {
   var p = location.pathname;
@@ -1134,20 +1134,20 @@ function routePush(page) {
 var DATA = null, AGGS = {}, SEC = null, SECLOADING = false, CONST = null, CONSTLOADING = false, SQUADS = null, SQUADSLOADING = false;
 var DI = null, DDI = null, KI = null, TDI = null;
 var lastDraft = null, lastKeep = null, POSRANK = {};
-var PAGES = [['home','Home'],['current','Current season standings'],['seasons','Standings by season'],['h2h','Owner vs owner head to head record'],['records','League record book'],['topplayers','Most started and top scoring players'],['lineups','Historic starting lineups'],
-             ['divisions','Division vs division history'],['draft','Draft history'],['budgets','Current draft dollars'],['keepers','Current keeper options and prices'],['devydraft','Active devy players and picks'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['blog','Blog'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"],['pickem','Pick’em'],['owners','Owner profiles']];
+var PAGES = [['home','Home'],['schedule','Schedule'],['current','Season standings'],['seasons','Standings by season'],['h2h','Owner head-to-head records'],['records','League record book'],['topplayers','Most started and top scoring players'],['lineups','Historic starting lineups'],
+             ['divisions','Division vs division'],['draft','Draft history'],['budgets','Draft dollars'],['keepers','Keeper prices & options'],['devydraft','Devy picks & players'],['taxisquads','Taxi Squads'],['constitution','Constitution'],['blog','Blog'],['trophy','Trophy room'],['rules','Rule proposals'],['thisweek',"This week's matchups"],['pickem','Pick’em'],['owners','Owner profiles']];
 var RULES_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdtN5Oopj3cklw4TIE_nhuLOmkv2KLOzf6MyP__7paD9rSoLQ/viewform';
 // Grouped navigation: four top-level entries instead of thirteen.
 var NAVGROUPS = [
   { page: 'home', label: 'Home' },
-  { label: 'This season', items: ['thisweek', 'current', 'budgets', 'tradehist', 'keepers', 'taxisquads', 'devydraft', 'rules', 'pickem'] },
+  { label: 'This season', items: ['thisweek', 'current', 'schedule', 'budgets', 'tradehist', 'keepers', 'taxisquads', 'devydraft', 'rules', 'pickem'] },
   { label: 'League history', items: ['owners', 'draft', 'budgetsall', 'seasons', 'divisions', 'records', 'h2h', 'topplayers', 'lineups', 'trophy'] },
   { page: 'constitution', label: 'Constitution' },
   { page: 'blog', label: 'Blog' }
 ];
 // Menu entries that jump straight to a tab of another page.
 var NAVX = {
-  tradehist: { label: 'Trade history', go: function () { gotoBudgetsTab('trades'); } },
+  tradehist: { label: 'Trades', go: function () { gotoBudgetsTab('trades'); } },
   budgetsall: { label: 'Draft dollars by season', go: function () { gotoBudgetsTab('hist'); } }
 };
 function gotoBudgetsTab(bv) {
@@ -1367,6 +1367,7 @@ function show(page) {
   });
   if (page === 'records') ensureAggs();
   if (page === 'divisions') renderDivisions();
+  if (page === 'schedule') renderSchedule();
   if (page === 'blog') renderBlog();
   if (page === 'thisweek') ensureThisWeek();
   if (page === 'pickem') ensurePickem();
@@ -2042,15 +2043,53 @@ function ensureAggs() {
       set: f[2]
     });
 }
+var RECGROUPS = [
+  ['careers', 'Careers', ['career', 'allplay', 'postreaks']],
+  ['seasons', 'Seasons', ['bestseason', 'highseason', 'lowseason', 'paseason', 'lossseason', 'allplayyear', 'streakseason']],
+  ['weeks', 'Single weeks', ['highgame', 'lowgame', 'bestloss', 'luckywin', 'thresholds']],
+  ['matchups', 'Matchups', ['highmatch', 'lowmatch', 'blowout', 'closest']],
+  ['streaks', 'Streaks', ['streakwl', 'streak100', 'streak120']]
+];
+var RECLABELS = {
+  career: 'Career standings', allplay: 'All-play: career', postreaks: 'Playoff streaks & droughts',
+  bestseason: 'Best regular seasons', highseason: 'Highest scoring seasons', lowseason: 'Lowest scoring seasons',
+  paseason: 'Most points against in a season', lossseason: 'Best losing seasons', allplayyear: 'All-play: best seasons',
+  streakseason: 'Streaks: seasons', highgame: 'Highest scores in a week', lowgame: 'Lowest scores in a week',
+  bestloss: 'Highest-scoring losses', luckywin: 'Lowest-scoring wins', thresholds: 'Weeks over 150 / 120 / under 100',
+  highmatch: 'Highest scoring matchups', lowmatch: 'Lowest scoring matchups', blowout: 'Biggest blowouts',
+  closest: 'Closest games', streakwl: 'Streaks: wins & losses', streak100: 'Streaks: 100-point games',
+  streak120: 'Streaks: 120-point games'
+};
+var recGroup = 'careers';
+function buildRecSel(want) {
+  var grp = RECGROUPS.filter(function (g2) { return g2[0] === recGroup; })[0];
+  var cur = want || el('selRec').value;
+  el('selRec').innerHTML = grp[2].map(function (id2) { return '<option value="' + id2 + '">' + RECLABELS[id2] + '</option>'; }).join('');
+  if (grp[2].indexOf(cur) > -1) el('selRec').value = cur;
+}
+function initRecTabs(deep) {
+  var pills = el('recPills');
+  if (!pills.innerHTML) {
+    pills.innerHTML = RECGROUPS.map(function (g2) { return '<button class="pill" data-rg="' + g2[0] + '">' + g2[1] + '</button>'; }).join('');
+    pills.querySelectorAll('button').forEach(function (b) {
+      b.onclick = function () { recGroup = b.dataset.rg; buildRecSel(null); ensureAggs(); renderRecords(); };
+    });
+  }
+  if (deep) RECGROUPS.forEach(function (g2) { if (g2[2].indexOf(deep) > -1) recGroup = g2[0]; });
+  pills.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.rg === recGroup); });
+  buildRecSel(deep);
+}
 function renderRecords() {
   if (!renderRecords._qs) {
     renderRecords._qs = 1;
-    setSelIf_('selRec', routeGetQS('rec'));
+    initRecTabs(routeGetQS('rec') || 'career');
+  } else {
+    initRecTabs(null);
   }
   el('selRec').onchange = function () { ensureAggs(); renderRecords(); };
   var v = el('selRec').value, note = '';
   if (CURPAGE === 'records') routeSetQS({ rec: v === 'career' ? '' : v });
-  var filterable = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'allplayyear', 'lossseason'].indexOf(v) > -1;
+  var filterable = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'allplayyear', 'lossseason', 'highseason', 'lowseason', 'paseason'].indexOf(v) > -1;
   el('recFilters').style.display = filterable ? 'flex' : 'none';
   var fy = el('selRYear').value, fo = el('selROwner').value, fs = el('selRSet').value;
   function setMatch(r) {
@@ -2061,6 +2100,34 @@ function renderRecords() {
   }
   function yearMatch(r) { return fy === 'All years' || Number(r[G('Year')]) === Number(fy); }
 
+  if (v === 'highseason' || v === 'lowseason' || v === 'paseason') {
+    var agS = {};
+    DATA.games.rows.forEach(function (r) {
+      if (!setMatch(r) || !yearMatch(r)) return;
+      var o2 = String(r[G('Owner')]);
+      if (fo !== 'All owners' && o2 !== fo) return;
+      var k2 = r[G('Year')] + '|' + o2;
+      var a2 = agS[k2] = agS[k2] || { y: Number(r[G('Year')]), o: o2, pf: 0, pa: 0, g: 0, w: 0, l: 0 };
+      a2.pf += Number(r[G('PointsFor')]) || 0; a2.pa += Number(r[G('PointsAgainst')]) || 0; a2.g++;
+      if (r[G('Result')] === 'W') a2.w++; else if (r[G('Result')] === 'L') a2.l++;
+    });
+    var minG = (fs === 'post' || fs === 'playoffs') ? 1 : 8;
+    var seaL = Object.keys(agS).map(function (k2) { return agS[k2]; }).filter(function (a2) { return a2.g >= minG; });
+    seaL.sort(v === 'highseason' ? function (a2, b2) { return b2.pf / b2.g - a2.pf / a2.g; } :
+      v === 'lowseason' ? function (a2, b2) { return a2.pf / a2.g - b2.pf / b2.g; } :
+      function (a2, b2) { return b2.pa / b2.g - a2.pa / a2.g; });
+    var seaRows = seaL.slice(0, 25).map(function (a2, i3) {
+      return [i3 + 1, a2.o, a2.y, a2.g, a2.w + '-' + a2.l,
+        n1(v === 'paseason' ? a2.pa : a2.pf), n1((v === 'paseason' ? a2.pa : a2.pf) / a2.g)];
+    });
+    sortableTable('recTable', ['#', 'Owner', 'Year', 'Games', 'Record',
+      v === 'paseason' ? 'Total PA' : 'Total PF', v === 'paseason' ? 'Avg PA / game' : 'Avg PF / game'], seaRows, [0, 2, 3, 5, 6]);
+    el('recNote').innerHTML = (v === 'highseason' ? 'The best scoring seasons in league history, ranked by average points per game.'
+      : v === 'lowseason' ? 'The roughest scoring seasons in league history, ranked by average points per game (lowest first).'
+      : 'The most points ever put up <i>against</i> an owner in a season \u2014 the unluckiest schedules the league has dealt.') +
+      ' Use the Games filter to flip between all games, regular season only, or the post-season.';
+    return;
+  }
   if (v === 'career') {
     var agg = {};
     DATA.seasons.rows.forEach(function (r) {
@@ -3620,6 +3687,7 @@ function ensureCurrent() {
     if (d && d.error) { el('curMsg').textContent = d.error; return; }
     CUR = d; el('curMsg').textContent = '';
     renderCurrent();
+    try { if (el('v-schedule').classList.contains('on')) renderSchedule(); } catch (e3) {}
   }).withFailureHandler(function (e) {
     CURLOADING = false;
     el('curMsg').textContent = 'Could not load: ' + (e && e.message ? e.message : e);
@@ -3752,6 +3820,124 @@ function curRowBits(o, c) {
     last10: l10.length ? '(' + l10w + '-' + (l10.length - l10w) + ')' : ''
   };
 }
+// ---------- Schedule page ----------
+function schIndex_() {
+  // one-time index of TeamGames into paired games + per-year regular-season stats
+  if (schIndex_._x) return schIndex_._x;
+  var out = { years: [], games: {}, st: {} };
+  var seen = {};
+  DATA.games.rows.forEach(function (r, ri) {
+    var y = Number(r[G('Year')]); if (!y) return;
+    if (!seen[y]) { seen[y] = 1; out.years.push(y); out.games[y] = {}; out.st[y] = {}; }
+    var o = String(r[G('Owner')]), opp = String(r[G('Opponent')]);
+    var sw = Number(r[G('SerialWeek')]) || 0;
+    var pf = Number(r[G('PointsFor')]) || 0, pa = Number(r[G('PointsAgainst')]) || 0;
+    if (r[G('Set')] === 'Regular Season') {
+      var st = out.st[y][o] = out.st[y][o] || { w: 0, l: 0, pf: 0, pa: 0, g: 0 };
+      st.g++; st.pf += pf; st.pa += pa;
+      if (r[G('Result')] === 'W') st.w++; else if (r[G('Result')] === 'L') st.l++;
+    }
+    var key = sw + '|' + [o, opp].sort().join('|');
+    var g = out.games[y][key];
+    if (!g) {
+      // first row of the pair is the home side (import order)
+      out.games[y][key] = { sw: sw, ri: ri, label: String(r[G('WeekLabel')] || 'Week'), set: r[G('Set')],
+        po: r[G('PlayoffGame')] === true, home: o, hs: pf, away: opp, as: pa };
+    } else if (g.home === opp && !g.scored) {
+      g.as = pf; g.scored = 1;
+    }
+  });
+  out.years.sort(function (a, b) { return b - a; });
+  // ranks per year (PF, avg, PA — 1 = most)
+  out.ranks = {};
+  out.years.forEach(function (y) {
+    var os = Object.keys(out.st[y]);
+    function rk(f) {
+      var ord = os.slice().sort(function (a, b) { return f(out.st[y][b]) - f(out.st[y][a]); });
+      var m = {}; ord.forEach(function (o, i) { m[o] = i + 1; }); return m;
+    }
+    out.ranks[y] = {
+      pf: rk(function (s) { return s.pf; }),
+      avg: rk(function (s) { return s.g ? s.pf / s.g : 0; }),
+      pa: rk(function (s) { return s.pa; })
+    };
+  });
+  schIndex_._x = out;
+  return out;
+}
+function schDiv_(y, o) {
+  var d = '';
+  DATA.seasons.rows.forEach(function (r) {
+    if (Number(r[S('Year')]) === y && String(r[S('Owner')]) === o) d = String(r[S('Division')] || '');
+  });
+  if (!d && CUR) { try { var c = curCompute(null); if (c && c.div) d = c.div[o] || ''; } catch (e) {} }
+  return d;
+}
+function ordinal_(n) { var j = n % 10, k = n % 100; return n + (j === 1 && k !== 11 ? 'st' : j === 2 && k !== 12 ? 'nd' : j === 3 && k !== 13 ? 'rd' : 'th'); }
+function renderSchedule() {
+  if (!DATA || !DATA.games) return;
+  var X = schIndex_();
+  var ySel = el('selSchYear'), oSel = el('selSchOwner');
+  if (!ySel.options.length) {
+    ySel.innerHTML = X.years.map(function (y) { return '<option>' + y + '</option>'; }).join('');
+    oSel.innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+    if (!renderSchedule._qs) {
+      renderSchedule._qs = 1;
+      setSelIf_('selSchYear', routeGetQS('year'));
+      setSelIf_('selSchOwner', routeGetQS('o'));
+    }
+    ySel.onchange = renderSchedule; oSel.onchange = renderSchedule;
+  }
+  var y = Number(ySel.value), fo = oSel.value;
+  if (CURPAGE === 'schedule') routeSetQS({ year: y === X.years[0] ? '' : String(y), o: fo === 'All owners' ? '' : fo });
+  // current year divisions come from the current-season payload
+  if (y === X.years[0] && !CUR && !renderSchedule._kick) { renderSchedule._kick = 1; try { ensureCurrent(); } catch (e) {} }
+  var st = X.st[y] || {}, rks = X.ranks[y] || { pf: {}, avg: {}, pa: {} };
+  function rec(o) { var s2 = st[o]; return s2 ? s2.w + '-' + s2.l : ''; }
+  var glist = Object.keys(X.games[y] || {}).map(function (k) { return X.games[y][k]; })
+    .sort(function (a, b) { return a.sw - b.sw || a.ri - b.ri; });
+  var html = '';
+  if (fo === 'All owners') {
+    el('schCards').style.display = 'none';
+    html = '<div class="twrap"><table class="fit"><thead><tr><th>Away</th><th>Div</th><th class="num">Score</th><th>Home</th><th>Div</th><th class="num">Score</th></tr></thead><tbody>';
+    var lastSw = null;
+    glist.forEach(function (g) {
+      if (g.sw !== lastSw) {
+        lastSw = g.sw;
+        html += '<tr class="wkhead"><td colspan="6">' + g.label + (g.po ? ' · playoffs' : g.set === 'Post-Season' ? ' · post-season' : '') + '</td></tr>';
+      }
+      var done = g.hs || g.as, hw = done && g.hs > g.as, aw = done && g.as > g.hs;
+      html += '<tr><td><b>' + g.away + '</b> <span style="color:var(--muted);font-size:11.5px">' + rec(g.away) + '</span></td>' +
+        '<td>' + schDiv_(y, g.away) + '</td><td class="num ' + (aw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.as) : '—') + '</td>' +
+        '<td><b>' + g.home + '</b> <span style="color:var(--muted);font-size:11.5px">' + rec(g.home) + '</span></td>' +
+        '<td>' + schDiv_(y, g.home) + '</td><td class="num ' + (hw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.hs) : '—') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  } else {
+    var s = st[fo] || { w: 0, l: 0, pf: 0, pa: 0, g: 0 };
+    el('schCards').style.display = 'flex';
+    el('schCards').innerHTML =
+      '<div class="schcard"><div class="k">Record</div><div class="v">' + s.w + '-' + s.l + '</div><div class="s">' + y + ' regular season</div></div>' +
+      '<div class="schcard"><div class="k">Division</div><div class="v">' + (schDiv_(y, fo) || '—') + '</div><div class="s">&nbsp;</div></div>' +
+      '<div class="schcard"><div class="k">Points for</div><div class="v">' + n1(s.pf) + '</div><div class="s">' + (rks.pf[fo] ? ordinal_(rks.pf[fo]) + ' in the league' : '') + '</div></div>' +
+      '<div class="schcard"><div class="k">Avg points</div><div class="v">' + (s.g ? n1(s.pf / s.g) : '—') + '</div><div class="s">' + (rks.avg[fo] ? ordinal_(rks.avg[fo]) + ' in the league' : '') + '</div></div>' +
+      '<div class="schcard"><div class="k">Points against</div><div class="v">' + n1(s.pa) + '</div><div class="s">' + (rks.pa[fo] ? ordinal_(rks.pa[fo]) + ' most in the league' : '') + '</div></div>';
+    html = '<div class="twrap"><table class="fit"><thead><tr><th>Week</th><th>Opponent</th><th>Opp div</th><th class="num">Opp PF rank</th><th class="num">Score</th></tr></thead><tbody>';
+    glist.forEach(function (g) {
+      if (g.home !== fo && g.away !== fo) return;
+      var opp = g.home === fo ? g.away : g.home;
+      var my = g.home === fo ? g.hs : g.as, their = g.home === fo ? g.as : g.hs;
+      var done = g.hs || g.as, won = done && my > their;
+      html += '<tr><td>' + g.label + (g.po ? ' <span class="chip div">Playoffs</span>' : g.set === 'Post-Season' ? ' <span style="color:var(--muted);font-size:11px">post</span>' : '') + '</td>' +
+        '<td><b>' + opp + '</b> <span style="color:var(--muted);font-size:11.5px">' + rec(opp) + '</span></td>' +
+        '<td>' + schDiv_(y, opp) + '</td><td class="num">' + (rks.pf[opp] ? ordinal_(rks.pf[opp]) : '—') + '</td>' +
+        '<td class="num ' + (done ? (won ? 'sw' : 'sl') : '') + '">' + (done ? (won ? 'W ' : 'L ') + n1(my) + '–' + n1(their) : '—') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  el('schBody').innerHTML = html;
+}
+
 // ---------- League blog ----------
 function blogPost_w10_() {
   function ptab(title, rows, after) {
