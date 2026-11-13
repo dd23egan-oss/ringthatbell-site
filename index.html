@@ -242,6 +242,25 @@
   tr.wkhead:first-child td { border-top: 0; }
   .pfr-hi { color: #b3261e; font-weight: 800; }
   .pfr-lo { color: var(--primary); font-weight: 800; }
+  .schS, .schonly { display: none; }
+  .schsub { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+  @media (max-width: 700px) {
+    table.schtab { font-size: 12.5px; }
+    table.schtab th { font-size: 10.5px; letter-spacing: .2px; padding: 7px 5px; }
+    table.schtab td { padding: 7px 5px; }
+    table.schtab tr.wkhead td { padding: 7px 8px; }
+    table.schtab .schL, table.schtab .schhide { display: none; }
+    table.schtab .schS { display: inline; }
+    table.schtab .schonly { display: inline; }
+    table.schtab .schsub { display: block; font-size: 10.5px; margin-top: 1px; white-space: nowrap; }
+    table.schown td.num .sc1 { display: block; }
+    table.schown td.num .scsep { display: none; }
+    table.schown td.num .sc2 { display: block; font-size: 10.5px; opacity: .75; }
+    .schcards { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .schcard { min-width: 0; padding: 8px 10px; }
+    .schcard .v { font-size: 16px; }
+    .schcard .s { font-size: 10.5px; }
+  }
   .sw { color: var(--primary); font-weight: 800; }
   .sl { color: #b3261e; font-weight: 700; }
   .schcards { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
@@ -1055,7 +1074,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1113.0923';
+var RTB_BUILD = '1113.0933';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3859,7 +3878,7 @@ function schIndex_() {
     out.ranks[y] = {
       pf: rk(function (s) { return s.pf; }),
       avg: rk(function (s) { return s.g ? s.pf / s.g : 0; }),
-      pa: rk(function (s) { return s.pa; })
+      pa: rk(function (s) { return s.g ? s.pa / s.g : 0; })
     };
   });
   schIndex_._x = out;
@@ -3904,6 +3923,11 @@ function schFutureGames_(y, played) {
   });
   return out;
 }
+// long label on desktop, short label on phones
+function LS_(lg, sm) { return '<span class="schL">' + lg + '</span><span class="schS">' + sm + '</span>'; }
+function schDivS_(d) {
+  return ({ Premier: 'Prem', Second: '2nd', Third: '3rd', East: 'East', Central: 'Cent', West: 'West' })[d] || d || '';
+}
 function renderSchedule() {
   if (!DATA || !DATA.games) return;
   var X = schIndex_();
@@ -3942,7 +3966,7 @@ function renderSchedule() {
   var html = '';
   if (fo === 'All owners') {
     el('schCards').style.display = 'none';
-    html = '<div class="twrap"><table class="fit"><thead><tr><th>Away</th><th>Div</th><th class="num">Score</th><th>Home</th><th>Div</th><th class="num">Score</th></tr></thead><tbody>';
+    html = '<div class="twrap"><table class="fit schtab"><thead><tr><th>Away</th><th class="schhide">Div</th><th class="num">Score</th><th>Home</th><th class="schhide">Div</th><th class="num">Score</th></tr></thead><tbody>';
     var lastSw = null;
     glist.forEach(function (g) {
       if (g.sw !== lastSw) {
@@ -3950,10 +3974,14 @@ function renderSchedule() {
         html += '<tr class="wkhead"><td colspan="6">' + g.label + (g.po ? ' · playoffs' : g.set === 'Post-Season' ? ' · post-season' : '') + '</td></tr>';
       }
       var done = g.hs || g.as, hw = done && g.hs > g.as, aw = done && g.as > g.hs;
-      html += '<tr><td><b>' + g.away + '</b> <span style="color:var(--muted);font-size:11.5px">' + rec(g.away) + '</span></td>' +
-        '<td>' + schDiv_(y, g.away) + '</td><td class="num ' + (aw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.as) : '—') + '</td>' +
-        '<td><b>' + g.home + '</b> <span style="color:var(--muted);font-size:11.5px">' + rec(g.home) + '</span></td>' +
-        '<td>' + schDiv_(y, g.home) + '</td><td class="num ' + (hw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.hs) : '—') + '</td></tr>';
+      // on phones the division moves under the name next to the record
+      function who(o) {
+        return '<b>' + o + '</b> <span class="schsub">' + rec(o) + '<span class="schonly"> · ' + schDivS_(schDiv_(y, o)) + '</span></span>';
+      }
+      html += '<tr><td>' + who(g.away) + '</td>' +
+        '<td class="schhide">' + schDiv_(y, g.away) + '</td><td class="num ' + (aw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.as) : '—') + '</td>' +
+        '<td>' + who(g.home) + '</td>' +
+        '<td class="schhide">' + schDiv_(y, g.home) + '</td><td class="num ' + (hw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.hs) : '—') + '</td></tr>';
     });
     html += '</tbody></table></div>';
   } else {
@@ -3964,19 +3992,24 @@ function renderSchedule() {
       '<div class="schcard"><div class="k">Division</div><div class="v">' + (schDiv_(y, fo) || '—') + '</div><div class="s">&nbsp;</div></div>' +
       '<div class="schcard"><div class="k">Points for</div><div class="v">' + n1(s.pf) + '</div><div class="s">' + (rks.pf[fo] ? ordinal_(rks.pf[fo]) + ' in the league' : '') + '</div></div>' +
       '<div class="schcard"><div class="k">Avg points</div><div class="v">' + (s.g ? n1(s.pf / s.g) : '—') + '</div><div class="s">' + (rks.avg[fo] ? ordinal_(rks.avg[fo]) + ' in the league' : '') + '</div></div>' +
-      '<div class="schcard"><div class="k">Points against</div><div class="v">' + n1(s.pa) + '</div><div class="s">' + (rks.pa[fo] ? ordinal_(rks.pa[fo]) + ' most in the league' : '') + '</div></div>';
-    html = '<div class="twrap"><table class="fit"><thead><tr><th>Week</th><th>Opponent</th><th class="num">Opp record</th><th>Opp div</th><th class="num">Opp PF rank</th><th>W/L</th><th class="num">Score</th></tr></thead><tbody>';
+      '<div class="schcard"><div class="k">Avg points against</div><div class="v">' + (s.g ? n1(s.pa / s.g) : '—') + '</div><div class="s">' + (rks.pa[fo] ? ordinal_(rks.pa[fo]) + ' most in the league' : '') + '</div></div>';
+    html = '<div class="twrap"><table class="fit schtab schown"><thead><tr>' +
+      '<th>' + LS_('Week', 'Wk') + '</th><th>' + LS_('Opponent', 'Opp') + '</th><th class="num">' + LS_('Opp record', 'Rec') + '</th>' +
+      '<th>' + LS_('Opp div', 'Div') + '</th><th class="num">' + LS_('Opp PF rank', 'PF rk') + '</th><th>W/L</th><th class="num">Score</th></tr></thead><tbody>';
     glist.forEach(function (g) {
       if (g.home !== fo && g.away !== fo) return;
       var opp = g.home === fo ? g.away : g.home;
       var my = g.home === fo ? g.hs : g.as, their = g.home === fo ? g.as : g.hs;
       var done = g.hs || g.as, won = done && my > their;
-      html += '<tr><td>' + g.label + (g.po ? ' <span class="chip div">Playoffs</span>' : g.set === 'Post-Season' ? ' <span style="color:var(--muted);font-size:11px">post</span>' : '') + '</td>' +
+      var wkn = (/(\d+)/.exec(g.label) || [])[1] || g.label;
+      var dv = schDiv_(y, opp);
+      html += '<tr><td>' + LS_(g.label, wkn) + (g.po ? ' <span class="chip div">' + LS_('Playoffs', 'PO') + '</span>' : g.set === 'Post-Season' ? ' <span style="color:var(--muted);font-size:11px">post</span>' : '') + '</td>' +
         '<td><b>' + opp + '</b></td><td class="num">' + rec(opp) + '</td>' +
-        '<td>' + schDiv_(y, opp) + '</td>' +
+        '<td>' + LS_(dv, schDivS_(dv)) + '</td>' +
         '<td class="num ' + pfrCls(rks.pf[opp]) + '">' + (rks.pf[opp] ? ordinal_(rks.pf[opp]) : '—') + '</td>' +
         '<td class="' + (done ? (won ? 'sw' : 'sl') : '') + '">' + (done ? (won ? 'W' : 'L') : '—') + '</td>' +
-        '<td class="num ' + (done ? (won ? 'sw' : 'sl') : '') + '">' + (done ? n1(my) + '–' + n1(their) : '—') + '</td></tr>';
+        '<td class="num ' + (done ? (won ? 'sw' : 'sl') : '') + '">' +
+          (done ? '<span class="sc1">' + n1(my) + '</span><span class="scsep">–</span><span class="sc2">' + n1(their) + '</span>' : '—') + '</td></tr>';
     });
     html += '</tbody></table></div>';
   }
