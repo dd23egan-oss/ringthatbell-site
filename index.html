@@ -752,6 +752,7 @@
     <h1>Draft dollars</h1>
     <div class="controls">
       <label for="selBOwner">Owner</label><select id="selBOwner"></select>
+      <span id="bhYearWrap" class="cwrap" style="display:none"><label for="selBHYear" style="margin-left:8px">Year</label><select id="selBHYear"></select></span>
       <button class="btn" id="csvBudget">Download CSV</button>
     </div>
     <div class="pills" id="budPills">
@@ -762,10 +763,6 @@
     <div class="note" id="budgetMsg"></div>
     <div class="budgetDuo" id="budgetDuoPage"></div>
     <div id="budHist" style="display:none">
-      <div class="controls">
-        <label for="selBHOwner">Owner</label><select id="selBHOwner"></select>
-        <label for="selBHYear" style="margin-left:8px">Year</label><select id="selBHYear"></select>
-      </div>
       <div class="card" id="bhStats" style="display:none"></div>
       <div class="recgrid" id="budRecs"></div>
       <div class="twrap"><table id="budHistTable"></table></div>
@@ -1074,7 +1071,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1113.0933';
+var RTB_BUILD = '1113.0941';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1176,6 +1173,7 @@ function gotoBudgetsTab(bv) {
   el('budgetDuoPage').style.display = bv === 'cur' ? '' : 'none';
   el('budgetNote').style.display = bv === 'cur' ? '' : 'none';
   el('budHist').style.display = bv === 'hist' ? 'block' : 'none';
+  el('bhYearWrap').style.display = bv === 'hist' ? '' : 'none';
   el('budTrades').style.display = bv === 'trades' ? 'block' : 'none';
   routeSetQS({ tab: bv === 'cur' ? '' : bv });
   if (bv === 'hist') ensureBudHist();
@@ -5153,6 +5151,7 @@ function initBudPills() {
       el('budgetDuoPage').style.display = BUDVIEW === 'cur' ? '' : 'none';
       el('budgetNote').style.display = BUDVIEW === 'cur' ? '' : 'none';
       el('budHist').style.display = BUDVIEW === 'hist' ? 'block' : 'none';
+      el('bhYearWrap').style.display = BUDVIEW === 'hist' ? '' : 'none';
       el('budTrades').style.display = BUDVIEW === 'trades' ? 'block' : 'none';
       if (CURPAGE === 'budgets') routeSetQS({ tab: BUDVIEW === 'cur' ? '' : BUDVIEW });
       if (BUDVIEW === 'hist') ensureBudHist();
@@ -5216,20 +5215,23 @@ function renderBudHist() {
       var y = Number(r[bi.Year]); if (y) ys[y] = 1;
       var o = String(r[bi.Owner] == null ? '' : r[bi.Owner]).trim(); if (o) os[o] = 1;
     });
-    el('selBHOwner').innerHTML = '<option>All owners</option>' + Object.keys(os).sort()
-      .map(function (o) { return '<option>' + o + '</option>'; }).join('');
+    // make sure any past owner in the history is also in the page's owner filter
+    var have = {};
+    Array.prototype.forEach.call(el('selBOwner').options, function (op) { have[op.value] = 1; });
+    Object.keys(os).sort().forEach(function (o) {
+      if (!have[o]) { var op = document.createElement('option'); op.textContent = o; el('selBOwner').appendChild(op); }
+    });
     el('selBHYear').innerHTML = '<option>All years</option>' + Object.keys(ys).map(Number)
       .sort(function (a, b) { return b - a; })
       .map(function (y) { return '<option>' + y + '</option>'; }).join('');
-    el('selBHOwner').onchange = renderBudHist;
     el('selBHYear').onchange = renderBudHist;
     if (CURPAGE === 'budgets') {
-      setSelIf_('selBHOwner', routeGetQS('owner'));
+      setSelIf_('selBOwner', routeGetQS('owner'));
       setSelIf_('selBHYear', routeGetQS('year'));
     }
   }
   el('budRecs').innerHTML = budRecords(bi);
-  var fo = (el('selBHOwner') && el('selBHOwner').value) || 'All owners';
+  var fo = (el('selBOwner') && el('selBOwner').value) || 'All owners';
   var fy = el('selBHYear').value;
   if (CURPAGE === 'budgets' && BUDVIEW === 'hist') routeSetQS({ owner: fo, year: fy });
   // owner career stats card (all years, whatever the year filter says)
@@ -6035,7 +6037,7 @@ function renderOwnerPage() {
         show('budgets');
         var b2 = document.querySelector('#budPills .pill[data-bv="hist"]');
         if (b2) b2.click();
-        if (setSelIf_('selBHOwner', O) && BUDHIST) renderBudHist();
+        if (setSelIf_('selBOwner', O) && BUDHIST) renderBudHist();
       } else if (kind === 'trades') {
         show('budgets');
         var b3 = document.querySelector('#budPills .pill[data-bv="trades"]');
