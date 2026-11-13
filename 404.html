@@ -989,8 +989,8 @@
 
   <div class="view" id="v-pickem">
     <h1>Pick&rsquo;em</h1>
-    <div style="margin:4px 0 10px"><a class="btn cta" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener"
-      href="https://docs.google.com/spreadsheets/d/1VJoMm_ZZ_k-PzC1OrV9gQ9rFxI2tjlXm1hJOCv1e5-A/edit?gid=480843884">📝 Make this week&rsquo;s picks (Google Sheets)</a></div>
+    <div id="pkFormWrap" style="margin:4px 0 10px;display:none"><a id="pkFormLink" class="btn cta" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener"
+      href="#">📝 Make this week&rsquo;s picks</a></div>
     <div class="note" id="pkMsg"></div>
     <div id="pkBody"></div>
   </div>
@@ -1052,7 +1052,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1113.0851';
+var RTB_BUILD = '1113.0852';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -6028,6 +6028,16 @@ function ensurePickem() {
 }
 function renderPickem() {
   if (!PKDATA) return;
+  // link to the current week's Google Form (sent by the API; hidden if none is open)
+  var cf = PKDATA.currentForm;
+  var cfOpen = cf && cf.url && !(cf.deadline && !isNaN(Date.parse(cf.deadline)) && Date.parse(cf.deadline) < Date.now());
+  if (cfOpen) {
+    el('pkFormLink').href = cf.url;
+    el('pkFormLink').innerHTML = '📝 Make your Week ' + cf.week + ' picks';
+    el('pkFormWrap').style.display = '';
+  } else {
+    el('pkFormWrap').style.display = 'none';
+  }
   var res = PKDATA.results && PKDATA.results.rows ? PKDATA.results.rows : [];
   var lines = PKDATA.lines && PKDATA.lines.rows ? PKDATA.lines.rows : [];
   var picks = PKDATA.picks && PKDATA.picks.rows ? PKDATA.picks.rows : [];
