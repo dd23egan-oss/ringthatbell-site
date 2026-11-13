@@ -238,7 +238,10 @@
   td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
   span.bestdiv { display: inline-block; }
   /* schedule page */
-  tr.wkhead td { background: #eef3ee; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: #2d5939; padding: 7px 10px; }
+  tr.wkhead td { background: #1f5a33 !important; color: #fff; font-weight: 800; font-size: 12.5px; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px; border-top: 6px solid var(--bg, #f4f6f3); }
+  tr.wkhead:first-child td { border-top: 0; }
+  .pfr-hi { color: #b3261e; font-weight: 800; }
+  .pfr-lo { color: var(--primary); font-weight: 800; }
   .sw { color: var(--primary); font-weight: 800; }
   .sl { color: #b3261e; font-weight: 700; }
   .schcards { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
@@ -1052,7 +1055,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1113.0852';
+var RTB_BUILD = '1113.0920';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -3931,7 +3934,8 @@ function renderSchedule() {
   // (also brings in the upcoming-games schedule)
   if (!CUR && !renderSchedule._kick) { renderSchedule._kick = 1; try { ensureCurrent(); } catch (e) {} }
   var st = X.st[y] || {}, rks = X.ranks[y] || { pf: {}, avg: {}, pa: {} };
-  function rec(o) { var s2 = st[o]; return s2 ? s2.w + '-' + s2.l : ''; }
+  function rec(o) { var s2 = st[o]; return s2 ? '(' + s2.w + '-' + s2.l + ')' : ''; }
+  function pfrCls(r) { return !r ? '' : r <= 4 ? 'pfr-hi' : r >= 9 ? 'pfr-lo' : ''; }
   var glist = Object.keys(X.games[y] || {}).map(function (k) { return X.games[y][k]; })
     .sort(function (a, b) { return a.sw - b.sw || a.ri - b.ri; });
   glist = glist.concat(schFutureGames_(y, glist));
@@ -3961,16 +3965,18 @@ function renderSchedule() {
       '<div class="schcard"><div class="k">Points for</div><div class="v">' + n1(s.pf) + '</div><div class="s">' + (rks.pf[fo] ? ordinal_(rks.pf[fo]) + ' in the league' : '') + '</div></div>' +
       '<div class="schcard"><div class="k">Avg points</div><div class="v">' + (s.g ? n1(s.pf / s.g) : '—') + '</div><div class="s">' + (rks.avg[fo] ? ordinal_(rks.avg[fo]) + ' in the league' : '') + '</div></div>' +
       '<div class="schcard"><div class="k">Points against</div><div class="v">' + n1(s.pa) + '</div><div class="s">' + (rks.pa[fo] ? ordinal_(rks.pa[fo]) + ' most in the league' : '') + '</div></div>';
-    html = '<div class="twrap"><table class="fit"><thead><tr><th>Week</th><th>Opponent</th><th>Opp div</th><th class="num">Opp PF rank</th><th class="num">Score</th></tr></thead><tbody>';
+    html = '<div class="twrap"><table class="fit"><thead><tr><th>Week</th><th>W/L</th><th>Opponent</th><th class="num">Opp record</th><th>Opp div</th><th class="num">Opp PF rank</th><th class="num">Score</th></tr></thead><tbody>';
     glist.forEach(function (g) {
       if (g.home !== fo && g.away !== fo) return;
       var opp = g.home === fo ? g.away : g.home;
       var my = g.home === fo ? g.hs : g.as, their = g.home === fo ? g.as : g.hs;
       var done = g.hs || g.as, won = done && my > their;
       html += '<tr><td>' + g.label + (g.po ? ' <span class="chip div">Playoffs</span>' : g.set === 'Post-Season' ? ' <span style="color:var(--muted);font-size:11px">post</span>' : '') + '</td>' +
-        '<td><b>' + opp + '</b> <span style="color:var(--muted);font-size:11.5px">' + rec(opp) + '</span></td>' +
-        '<td>' + schDiv_(y, opp) + '</td><td class="num">' + (rks.pf[opp] ? ordinal_(rks.pf[opp]) : '—') + '</td>' +
-        '<td class="num ' + (done ? (won ? 'sw' : 'sl') : '') + '">' + (done ? (won ? 'W ' : 'L ') + n1(my) + '–' + n1(their) : '—') + '</td></tr>';
+        '<td class="' + (done ? (won ? 'sw' : 'sl') : '') + '">' + (done ? (won ? 'W' : 'L') : '—') + '</td>' +
+        '<td><b>' + opp + '</b></td><td class="num">' + rec(opp) + '</td>' +
+        '<td>' + schDiv_(y, opp) + '</td>' +
+        '<td class="num ' + pfrCls(rks.pf[opp]) + '">' + (rks.pf[opp] ? ordinal_(rks.pf[opp]) : '—') + '</td>' +
+        '<td class="num ' + (done ? (won ? 'sw' : 'sl') : '') + '">' + (done ? n1(my) + '–' + n1(their) : '—') + '</td></tr>';
     });
     html += '</tbody></table></div>';
   }
