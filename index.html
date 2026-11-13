@@ -537,9 +537,6 @@
       <div class="count" id="countdown"></div>
     </div>
     <p class="intro" id="homeIntro"></p>
-    <div class="champStrip small" id="champStrip"></div>
-    <div id="homeChases" style="display:none"></div>
-
     <h2 class="secHead">Quick links</h2>
     <div class="qlinks" id="quickLinks">
       <button data-ql="thisweek">🏈 This week's matchups</button>
@@ -551,6 +548,10 @@
       <button data-ql="taxisquads">🚕 Taxi squads</button>
       <button data-ql="devypicks">🎓 Devy picks</button>
     </div>
+
+    <div class="champStrip small" id="champStrip"></div>
+    <div id="homeChases" style="display:none"></div>
+
 
     <h2 class="secHead">This season</h2>
     <div class="tiles" id="tilesCurrent"></div>
@@ -1071,7 +1072,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1113.0941';
+var RTB_BUILD = '1113.1143';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
