@@ -1086,7 +1086,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1114.1329';
+var RTB_BUILD = '1114.1352';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -4150,7 +4150,105 @@ function blogPost_w10_() {
 
   return h;
 }
+function blogPost_deadlineReview_() {
+  function tbl(heads, rows, numCols) {
+    numCols = numCols || [];
+    return '<div class="twrap"><table class="fit"><thead><tr>' + heads.map(function (h, i) {
+      return '<th' + (numCols.indexOf(i) > -1 ? ' class="num"' : '') + '>' + h + '</th>';
+    }).join('') + '</tr></thead><tbody>' + rows.map(function (r) {
+      return '<tr>' + r.map(function (c, i) { return '<td' + (numCols.indexOf(i) > -1 ? ' class="num"' : '') + '>' + c + '</td>'; }).join('') + '</tr>';
+    }).join('') + '</tbody></table></div>';
+  }
+  function tc(who, note) { return '<div class="tcard"><div class="twho">' + who + '</div><div class="tnote">' + note + '</div></div>'; }
+  var h = '';
+  h += '<p>The deadline came and went at Thursday’s kickoff, and the league did not go quietly: <b>ten trades in deadline week</b>, the second-busiest in league history behind 2023’s twelve. Brian was on one side of six of them.</p>';
+  h += '<p>When the dust settled, the league had split cleanly in two. Devin, Chris and Tom were already selling. Then <b>Robbie</b> shipped out Josh Allen and Isaiah Likely, and <b>Brendan</b> traded Joe Burrow and Davante Adams from the 4 seed. With Puka Nacua and Josh Jacobs also out of his lineup, Brendan has effectively taken himself out of the hunt. That leaves six teams chasing six playoff spots: <b>Ryan, Murph and Vik</b> in the Premier, <b>Brian and Drew</b> in the Second, and <b>Gray and John</b> in the Third.</p>';
+  h += '<p>Six for six sounds tidy. It isn’t. Seeding, byes and the Premier crown are all still up for grabs.</p>';
+
+  h += '<h2>Grading the deadline</h2>';
+  h += '<p>“Lineup gain” is the per-game difference between what a team added and the starter it replaces, using half-PPR points through Week 9.</p>';
+  h += tc('Brian lands Josh Allen + Isaiah Likely from Robbie · Robbie gets Bryce Young, $15 (2027) and $10 (2028)',
+    '<b>Grade: A.</b> The deal of the deadline. Allen (25.8 a game) replaces Young (19.1), and Likely (13.2) replaces Kyle Pitts (6.5). That’s roughly <b>+13 points a week</b> at two positions for one trade.');
+  h += tc('Ryan lands Joe Burrow from Brendan · Brendan gets Matthew Stafford, $13 (2027) and $13 (2028)',
+    '<b>Grade: A−.</b> Burrow (25.6) over Stafford (16.9) is <b>+8.7 a week</b> at quarterback for the team with the league’s hardest remaining schedule. Brendan’s $26 is a fair price for walking away from a playoff seat.');
+  h += tc('Vik lands Brock Purdy from Chris · Chris gets $4 (2027)',
+    '<b>Grade: A.</b> Still the steal of the deadline. Purdy (22.0) over Trevor Lawrence (18.9) is +3 a week for four dollars.');
+  h += tc('Brian lands Davante Adams from Brendan · Brendan gets Romeo Doubs, $5 (2027) and $4 (2028)',
+    '<b>Grade: B+.</b> Adams (14.5) is a real flex upgrade over Doubs (8.5): about +6 a week. It also moved Brian to exactly <b>$140</b> in 2027 dollars, the league floor.');
+  h += tc('Brian lands Tony Pollard from Devin · Devin gets Jordan Addison and $8 (2028)',
+    '<b>Grade: B+.</b> Pollard (13.7) slots in over David Montgomery (8.4) at RB2.');
+  h += tc('Gray lands Patrick Mahomes, A.J. Brown and DeMario Douglas from Devin · Devin gets $12 (2027) and $3 (2028)',
+    '<b>Grade: B−.</b> Depth more than a jolt. Mahomes (18.2) is insurance behind C.J. Stroud (20.8), Douglas (9.0) is a usable WR3, and Brown has played three games. Call it +2 a week, but Gray’s lineup was already good. He needed bodies, not stars.');
+  h += tc('Brian lands Denzel Boston + Jaguars D/ST from Tom · Tom gets Michael Wilson, Tyler Goodson and devy WR Ryan Coleman-Williams',
+    '<b>Grade: C.</b> Close to a wash this year (Boston 9.6 vs Wilson 10.6, plus a top-5 defense). The real cost is the future: Brian gave up a devy prospect to make the roster fit.');
+  h += tc('Ryan lands DJ Moore from Chris · Chris gets $11 (2027)', '<b>Grade: C.</b> Depth. Moore is WR60 on the season at 8.3 a game.');
+  h += tc('Brian lands Rachaad White from Devin (Nov. 6) · Devin gets $8 (2028)', '<b>Grade: C+.</b> RB depth that the Pollard deal made a luxury.');
+  h += tc('Brian lands $50 FAAB from Chris · Chris gets $1 (2028)', '<b>Grade: B.</b> A buck for waiver ammunition is cheap insurance.');
+
+  h += '<h3>The bill comes due in 2027</h3>';
+  h += '<p>The sellers now hold the money. Heading into the 2027 auction, <b>Devin and Tom have $237</b>, <b>Brendan $232</b>, Chris $216 and Robbie $215. At the bottom, <b>Brian sits at $140, the floor</b>, with Ryan at $169. For 2028 Devin leads at $244 and Brian has $144. That’s a $97 gap between the top and bottom of next year’s auction, the bill for this year’s arms race.</p>';
+
+  h += '<h2>Six teams, six spots: the odds</h2>';
+  h += '<p>The odds below come from 40,000 simulations of the last five weeks of the real schedule. Each team’s weekly scoring is adjusted for the starters it added or lost at the deadline, which bumps Brian up about 18 a week and Ryan about 8, and drops Brendan about 22 and Robbie about 10.</p>';
+  function who(n, d, r, live) { return (live ? '<b>' + n + '</b>' : n) + '<div style="font-size:11.5px;color:var(--muted)">' + d + ' · ' + r + '</div>'; }
+  h += tbl(['Team', 'Playoffs', 'Div title', 'Bye', '1 seed'], [
+    [who('Brian', 'Second', '7-2', true), '<b>&gt;99%</b>', '98%', '96%', '84%'],
+    [who('Ryan', 'Premier', '6-3', true), '<b>99%</b>', '79%', '79%', '13%'],
+    [who('Vik', 'Premier', '4-5', true), '<b>85%</b>', '10%', '10%', '&lt;1%'],
+    [who('Gray', 'Third', '5-4', true), '<b>82%</b>', '—', '3%', '2%'],
+    [who('Drew', 'Second', '6-3', true), '<b>73%</b>', '2%', '1%', '1%'],
+    [who('John', 'Third', '4-5', true), '<b>69%</b>', '—', '&lt;1%', '&lt;1%'],
+    [who('Murph', 'Premier', '5-4', true), '<b>68%</b>', '10%', '10%', '&lt;1%'],
+    [who('Brendan', 'Premier', '5-4', false), '14%', '1%', '1%', '—'],
+    [who('Robbie', 'Third', '4-5', false), '8%', '—', '—', '—']
+  ], [1, 2, 3, 4]);
+  h += '<p>The Third Division has no automatic bid, so “Div title” only applies to the Premier and Second. Devin and Chris are below 1%, and Tom is out.</p>';
+
+  h += '<h2>Can Vik or Murph take the Premier from Ryan?</h2>';
+  h += '<p><b>Probably not: Ryan wins the division 79% of the time, Vik and Murph about 10% each.</b> It’s closer than that number looks, though, because Ryan has the league’s hardest remaining schedule and has to go through both of them.</p>';
+  h += tbl(['Team', 'Weeks 10–14', 'Schedule'], [
+    [who('Ryan', 'Premier', '6-3', true), '<span style="white-space:normal">John · Brendan · <b>Murph</b> · <b>Vik</b> · Brian</span>', 'Hardest'],
+    [who('Vik', 'Premier', '4-5', true), '<span style="white-space:normal">Brian · Devin · Brendan · <b>Ryan</b> · <b>Murph</b></span>', '2nd hardest'],
+    [who('Murph', 'Premier', '5-4', true), '<span style="white-space:normal">Robbie · John · <b>Ryan</b> · Brendan · <b>Vik</b></span>', 'Middle']
+  ]);
+  h += '<p><b>Ryan</b> was already a top-three scorer, and Burrow makes this roster the second-best weekly lineup in the league. Kenneth Walker (RB2), CeeDee Lamb (WR2) and Trey McBride (TE1) give him an edge at three spots most weeks. A split of the Week 12 Murph and Week 13 Vik games almost certainly wraps up the division.</p>';
+  h += '<p><b>Vik</b> has the best backfield in the league in Bucky Irving (RB5), D’Andre Swift (RB8) and Derrick Henry (RB11), and Purdy fixed his quarterback spot for $4. But 4-5 means he needs to make up two games, and his schedule opens with Brian. The more realistic prize is the Premier’s second automatic bid, which is a big part of why he makes the playoffs 85% of the time.</p>';
+  h += '<p><b>Murph</b> is a game closer than Vik but projects as the weakest of the three. He has Jordan Love (QB3) and Tee Higgins (WR6), but no tight end to speak of, and he stood pat at the deadline while everyone around him reloaded. His path is clear, though: beat Ryan in Week 12 and Vik in Week 14.</p>';
+
+  h += '<h2>If Ryan hangs on: Brian or Ryan for the 1 seed?</h2>';
+  h += '<p>Under the seeding rules the Premier winner gets a bye, the best remaining record gets the other bye, and the <b>1 seed goes to whichever of those two has the better record</b>, with the right to pick its opponent. If Ryan wins the Premier and Brian takes the other bye, which happens in most simulations, the 1 seed comes down to the two of them.</p>';
+  h += '<p><b>Brian is the heavy favorite: he takes the 1 seed in 81% of the seasons where Ryan wins the division.</b> He starts a game up at 7-2. He’s already the league’s top scorer at 125.1 a game, and after the Allen, Likely, Adams and Pollard additions he projects about 12 points a week better than anyone. His remaining schedule is easier too: Vik, Tom, Drew, Chris, then Ryan.</p>';
+  h += '<p>Which brings us to <b>Week 14</b>. This year the league made the final week <b>rivalry week</b>, and it couldn’t have lined up better: <b>Ryan vs. Brian</b> to close the regular season. They haven’t played each other yet, so that game is also the head-to-head tiebreaker if they finish level. In nearly half of the seasons where Ryan wins the Premier, the Week 14 result decides who gets the 1 seed. Two more rivalry games could matter too: <b>Murph vs. Vik</b> could settle the Premier’s second automatic bid, and <b>Tom vs. Gray</b> is Gray’s last chance to slip.</p>';
+
+  h += '<h2>Can Brendan still make the playoffs?</h2>';
+  h += '<p><b>Mathematically yes, realistically no: 14%.</b> The strange part is that Brendan holds the 4 seed today at 5-4. But in one week he traded Burrow and Adams, and with Nacua and Jacobs out his projected weekly score falls from 117.9 to about 95, the lowest of any team still alive. His remaining slate is Tom, Ryan, Vik, Murph, Chris, the third-hardest in the league. The seasons where he gets in are the ones where he steals the Premier’s second auto bid by beating Vik and Murph head to head.</p>';
+  h += '<p>He isn’t walking away empty-handed, either. His $232 for 2027 is third in the league, and Nacua is a keeper option next year at $69.</p>';
+
+  h += '<h2>Can John get in from under .500?</h2>';
+  h += '<p><b>Better than you’d think: 69%, ahead of Murph despite a worse record.</b> John has been unlucky. He’s fourth in the league in scoring at 120.8 a game, with Brock Bowers (TE2), George Kittle, Drake Maye (QB4) and Chris Olave (WR9). That gives him two ways in: a wildcard on record, or the points-for 6 seed, where he’s 16.35 behind Vik.</p>';
+  h += '<p>His schedule: Ryan, Murph, <b>Gray</b>, Robbie, Devin. The Week 12 Gray game is the swing game of the whole wildcard race. John’s lone deadline move was a $31 waiver claim on Corey Kiner.</p>';
+
+  h += '<h2>Will Gray miss despite his stars?</h2>';
+  h += '<p><b>Probably not: 82%.</b> Gray has three of the best players in the league in Jahmyr Gibbs (RB1, 24.0 a game), Christian McCaffrey (RB4) and Amon-Ra St. Brown (WR8), yet he sits at 5-4 and sixth in scoring. With no Third Division auto bid he has to earn a wildcard or the points seed.</p>';
+  h += '<p>What saves him is the schedule. Gray has <b>the easiest remaining slate in the league by a mile</b>: Chris, Robbie, John, Devin and Tom. Four of the five are sellers, and their projected scores average about 109 a week, four points softer than the next-easiest slate in the league. If he misses, it’ll be because John beat him in Week 12.</p>';
+
+  h += '<h2>Other storylines</h2>';
+  h += '<ul>' +
+    '<li><b>Drew is 6-3 and nobody’s talking about him.</b> He’s ninth in points for (967.0), the lowest of any contender, and he didn’t make a move. His 73% comes from the second-easiest schedule left (Devin, Chris, Brian, Tom, Robbie). But a three-way tie on record goes to points for, and that’s a tiebreaker Drew would lose.</li>' +
+    '<li><b>Brian is at the floor.</b> Six deadline-week trades left him at exactly $140 for 2027. He can’t trade away another 2027 dollar, and he sent a devy WR out the door to make the roster work. It’s championship-or-bust, and the odds say it’s worth it.</li>' +
+    '<li><b>The points race for the 6 seed.</b> Vik 1,103.3, John 1,087.0, Brendan 1,060.8, Gray 1,059.3. If Vik climbs into a bid on record, John inherits the inside track.</li>' +
+    '<li><b>Justin Jefferson</b>, the $44 franchise-tagged receiver Vik got from Tom back in Week 6, is producing WR24 numbers (10.0 a game), the most expensive underperformer on any contender.</li>' +
+    '</ul>';
+  return h;
+}
 var BLOG_POSTS = [{
+  id: 'deadline-review',
+  draft: true,
+  date: 'November 14, 2026',
+  title: 'Deadline review: 10 trades, 6 teams, 6 spots',
+  teaser: 'Brian went all-in, Brendan and Robbie sold, and six teams are left chasing six playoff spots. Every deadline deal graded, plus the odds on the Premier crown, the 1 seed, and Week 14 rivalry week.',
+  html: blogPost_deadlineReview_
+}, {
   id: 'week10-trade-deadline',
   date: 'November 11, 2026',
   title: 'Week 10 playoff race & trade deadline guide',
@@ -4178,7 +4276,7 @@ function renderBlog() {
   BLOG_POSTS.forEach(function (b) { if (b.id === pid) post = b; });
   var box = el('blogBody');
   if (!post) {
-    box.innerHTML = BLOG_POSTS.map(function (b) {
+    box.innerHTML = BLOG_POSTS.filter(function (b) { return !b.draft; }).map(function (b) {
       return '<div class="bcard" data-bid="' + b.id + '"><div class="bdate">' + b.date + '</div>' +
         '<div style="font-size:17px;font-weight:800;margin:3px 0">' + b.title + '</div>' +
         '<div style="font-size:13.5px;color:#444">' + b.teaser + '</div>' +
@@ -4191,7 +4289,7 @@ function renderBlog() {
   } else {
     var body = typeof post.html === 'function' ? (post._h = post._h || post.html()) : post.html;
     box.innerHTML = '<button class="pill" id="blogBack" style="margin-bottom:4px">← All posts</button>' +
-      '<div class="bpost"><div class="bdate">' + post.date + '</div><h2 style="margin:4px 0 2px;font-size:20px">' + post.title + '</h2>' + body + '</div>';
+      '<div class="bpost"><div class="bdate">' + post.date + (post.draft ? ' &nbsp;<span class="keepchip" style="background:#fff4d6;color:#7a5a00;border-color:#f0dc9a">Draft · not listed yet</span>' : '') + '</div><h2 style="margin:4px 0 2px;font-size:20px">' + post.title + '</h2>' + body + '</div>';
     el('blogBack').onclick = function () { blogGo_(''); };
     try { document.title = post.title + ' | Ring That Bell'; } catch (eT2) { }
   }
