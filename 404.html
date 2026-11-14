@@ -1,10 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-<base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ring That Bell Fantasy Football</title>
+<meta name="description" content="The official home of the Ring That Bell Fantasy Football League, est. 2014: standings, schedule, trades, keepers, devy picks, records and every season of league history.">
+<link rel="canonical" href="https://ringthatbellfootball.com/">
+<meta property="og:site_name" content="Ring That Bell Fantasy Football">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ring That Bell Fantasy Football">
+<meta property="og:description" content="The official home of the Ring That Bell Fantasy Football League, est. 2014: standings, schedule, trades, keepers, devy picks, records and every season of league history.">
+<meta property="og:url" content="https://ringthatbellfootball.com/">
+<meta property="og:image" content="https://ringthatbellfootball.com/og-image.jpg">
+<meta property="og:image:width" content="600">
+<meta property="og:image:height" content="600">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Ring That Bell Fantasy Football">
+<meta name="twitter:description" content="The official home of the Ring That Bell Fantasy Football League, est. 2014: standings, schedule, trades, keepers, devy picks, records and every season of league history.">
+<meta name="twitter:image" content="https://ringthatbellfootball.com/og-image.jpg">
+<base target="_top">
 <style>
   :root { --primary: #0b4d22; --primary2: #157a38; --primaryDark: #06341a; --accent: #C9A227;
     --bg: #f3f6f3; --card: #ffffff; --line: #dbe3dc; --text: #14201a; --muted: #647a6b;
@@ -1072,7 +1086,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1113.1145';
+var RTB_BUILD = '1114.1329';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1119,16 +1133,18 @@ setTimeout(function () {
 
 // ---------- URL routing: every page has its own address ----------
 var SITE_BASE = /\.github\.io$/.test(location.hostname) ? '/ringthatbell-site' : '';
-var PAGE_SLUGS = { home: '', thisweek: 'this-week', current: 'current-season', budgets: 'draft-dollars',
-  keepers: 'keeper-options', taxisquads: 'taxi-squads', devydraft: 'devy-draft', devy: 'devy-players',
-  draft: 'draft-history', seasons: 'seasons', h2h: 'head-to-head', records: 'record-book',
-  topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution', divisions: 'division-history', blog: 'blog', schedule: 'schedule',
-  pickem: 'pickem', owners: 'owners' };
+var PAGE_SLUGS = { home: '', thisweek: 'this-week', current: 'current-season', schedule: 'schedule', budgets: 'draft-dollars', keepers: 'keeper-options', taxisquads: 'taxi-squads', devydraft: 'devy-draft', devy: 'devy-players', draft: 'draft-history', seasons: 'seasons', h2h: 'head-to-head', records: 'record-book', topplayers: 'top-players', lineups: 'lineups', trophy: 'trophy-room', constitution: 'constitution', divisions: 'division-history', blog: 'blog', pickem: 'pickem', owners: 'owners' };
+var PAGE_TITLES = { home: 'Ring That Bell Fantasy Football', thisweek: 'This Week\'s Matchups', current: 'Season Standings', schedule: 'Schedule', budgets: 'Draft Dollars', keepers: 'Keeper Prices & Options', taxisquads: 'Taxi Squads', devydraft: 'Devy Picks & Players', devy: 'Active Devy Players', draft: 'Draft History', seasons: 'Standings by Season', h2h: 'Owner Head-to-Head Records', records: 'League Record Book', topplayers: 'Most Started & Top Scoring Players', lineups: 'Historic Starting Lineups', trophy: 'Trophy Room', constitution: 'League Constitution', divisions: 'Division vs Division', blog: 'League Blog', pickem: 'Pick\'em', owners: 'Owner Profiles' };
+function setPageTitle_(page) {
+  var t = PAGE_TITLES[page];
+  try { document.title = (!t || page === 'home') ? 'Ring That Bell Fantasy Football' : t + ' | Ring That Bell'; } catch (e) { }
+}
 function pageFromPath() {
   var p = location.pathname;
   if (SITE_BASE && p.indexOf(SITE_BASE) === 0) p = p.slice(SITE_BASE.length);
-  p = p.replace(/^\/+|\/+$/g, '').toLowerCase();
+  p = p.replace(/^\/+|\/+$/g, '').replace(/\/index\.html$/, '').toLowerCase();
   if (!p || p === 'index.html' || p === '404.html') return 'home';
+  if (/^blog\//.test(p)) return 'blog';
   for (var k in PAGE_SLUGS) if (PAGE_SLUGS[k] === p) return k;
   return PAGE_SLUGS.hasOwnProperty(p) ? p : 'home';
 }
@@ -1139,14 +1155,19 @@ window.addEventListener('popstate', function () {
 });
 function routePush(page) {
   var replace = show._aliased; show._aliased = 0;
+  setPageTitle_(page);
   if (ROUTING_BACK || !window.history || !history.pushState) return;
   var slug = PAGE_SLUGS.hasOwnProperty(page) ? PAGE_SLUGS[page] : page;
   var url = (SITE_BASE + '/' + slug).replace(/\/+$/, '');
   if (!url) url = '/';
+  // a blog post's own address counts as being on the blog page
+  var here = location.pathname.replace(/\/+$/, '') || '/';
+  if (page === 'blog' && /\/blog\/[^\/]+$/.test(here)) return;
   try {
-    if (location.pathname !== url) history[replace ? 'replaceState' : 'pushState'](null, '', url);
+    if (here !== url) history[replace ? 'replaceState' : 'pushState'](null, '', url);
   } catch (eH) { }
 }
+
 var DATA = null, AGGS = {}, SEC = null, SECLOADING = false, CONST = null, CONSTLOADING = false, SQUADS = null, SQUADSLOADING = false;
 var DI = null, DDI = null, KI = null, TDI = null;
 var lastDraft = null, lastKeep = null, POSRANK = {};
@@ -4136,8 +4157,24 @@ var BLOG_POSTS = [{
   teaser: 'Seven trades in deadline week: Brian goes all-in for Josh Allen, Ryan lands Burrow, Brendan starts selling from the 4 seed. The full playoff-race rankings and who’s still available before Thursday.',
   html: blogPost_w10_
 }];
+// Blog posts live at /blog/<post-id> on the website (each has its own link preview);
+// ?post=<id> still works for older links and inside Apps Script.
+function blogPostFromPath_() {
+  var m = /\/blog\/([a-z0-9-]+)\/?$/i.exec(location.pathname);
+  return m ? m[1].toLowerCase() : '';
+}
+function blogGo_(id) {
+  var base = (typeof SITE_BASE === 'string') ? SITE_BASE : null;
+  if (base !== null && window.history && history.pushState) {
+    try { history.pushState(null, '', base + '/blog' + (id ? '/' + id : '')); } catch (e) { }
+  } else {
+    routeSetQS({ post: id });
+  }
+  renderBlog();
+  window.scrollTo(0, 0);
+}
 function renderBlog() {
-  var pid = routeGetQS('post'), post = null;
+  var pid = blogPostFromPath_() || routeGetQS('post'), post = null;
   BLOG_POSTS.forEach(function (b) { if (b.id === pid) post = b; });
   var box = el('blogBody');
   if (!post) {
@@ -4148,13 +4185,15 @@ function renderBlog() {
         '<div style="margin-top:6px;color:var(--primary);font-weight:700;font-size:13px">Read the post →</div></div>';
     }).join('');
     box.querySelectorAll('.bcard').forEach(function (c2) {
-      c2.onclick = function () { routeSetQS({ post: c2.dataset.bid }); renderBlog(); window.scrollTo(0, 0); };
+      c2.onclick = function () { blogGo_(c2.dataset.bid); };
     });
+    try { if (typeof setPageTitle_ === 'function') setPageTitle_('blog'); } catch (eT) { }
   } else {
     var body = typeof post.html === 'function' ? (post._h = post._h || post.html()) : post.html;
     box.innerHTML = '<button class="pill" id="blogBack" style="margin-bottom:4px">← All posts</button>' +
       '<div class="bpost"><div class="bdate">' + post.date + '</div><h2 style="margin:4px 0 2px;font-size:20px">' + post.title + '</h2>' + body + '</div>';
-    el('blogBack').onclick = function () { routeSetQS({ post: '' }); renderBlog(); window.scrollTo(0, 0); };
+    el('blogBack').onclick = function () { blogGo_(''); };
+    try { document.title = post.title + ' | Ring That Bell'; } catch (eT2) { }
   }
 }
 
