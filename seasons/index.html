@@ -1086,7 +1086,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1114.1352';
+var RTB_BUILD = '1114.1414';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -4188,54 +4188,45 @@ function blogPost_deadlineReview_() {
   h += '<h3>The bill comes due in 2027</h3>';
   h += '<p>The sellers now hold the money. Heading into the 2027 auction, <b>Devin and Tom have $237</b>, <b>Brendan $232</b>, Chris $216 and Robbie $215. At the bottom, <b>Brian sits at $140, the floor</b>, with Ryan at $169. For 2028 Devin leads at $244 and Brian has $144. That’s a $97 gap between the top and bottom of next year’s auction, the bill for this year’s arms race.</p>';
 
-  h += '<h2>Six teams, six spots: the odds</h2>';
-  h += '<p>The odds below come from 40,000 simulations of the last five weeks of the real schedule. Each team’s weekly scoring is adjusted for the starters it added or lost at the deadline, which bumps Brian up about 18 a week and Ryan about 8, and drops Brendan about 22 and Robbie about 10.</p>';
-  function who(n, d, r, live) { return (live ? '<b>' + n + '</b>' : n) + '<div style="font-size:11.5px;color:var(--muted)">' + d + ' · ' + r + '</div>'; }
-  h += tbl(['Team', 'Playoffs', 'Div title', 'Bye', '1 seed'], [
-    [who('Brian', 'Second', '7-2', true), '<b>&gt;99%</b>', '98%', '96%', '84%'],
-    [who('Ryan', 'Premier', '6-3', true), '<b>99%</b>', '79%', '79%', '13%'],
-    [who('Vik', 'Premier', '4-5', true), '<b>85%</b>', '10%', '10%', '&lt;1%'],
-    [who('Gray', 'Third', '5-4', true), '<b>82%</b>', '—', '3%', '2%'],
-    [who('Drew', 'Second', '6-3', true), '<b>73%</b>', '2%', '1%', '1%'],
-    [who('John', 'Third', '4-5', true), '<b>69%</b>', '—', '&lt;1%', '&lt;1%'],
-    [who('Murph', 'Premier', '5-4', true), '<b>68%</b>', '10%', '10%', '&lt;1%'],
-    [who('Brendan', 'Premier', '5-4', false), '14%', '1%', '1%', '—'],
-    [who('Robbie', 'Third', '4-5', false), '8%', '—', '—', '—']
-  ], [1, 2, 3, 4]);
-  h += '<p>The Third Division has no automatic bid, so “Div title” only applies to the Premier and Second. Devin and Chris are below 1%, and Tom is out.</p>';
+  h += '<h2>Where everyone stands</h2>';
+  h += '<p><b>Punch your ticket:</b> Brian and Ryan. Barring a collapse, these two are in and playing for byes.</p>';
+  h += '<p><b>In good shape:</b> Vik and Gray. Vik has the roster to finish second in the Premier, and Gray has a schedule that should carry him in.</p>';
+  h += '<p><b>On the bubble:</b> Drew, John and Murph. Three teams, probably two spots, and none of them gets an easy finish.</p>';
+  h += '<p><b>Need a miracle:</b> Brendan and Robbie, by their own hand.</p>';
 
   h += '<h2>Can Vik or Murph take the Premier from Ryan?</h2>';
-  h += '<p><b>Probably not: Ryan wins the division 79% of the time, Vik and Murph about 10% each.</b> It’s closer than that number looks, though, because Ryan has the league’s hardest remaining schedule and has to go through both of them.</p>';
-  h += tbl(['Team', 'Weeks 10–14', 'Schedule'], [
-    [who('Ryan', 'Premier', '6-3', true), '<span style="white-space:normal">John · Brendan · <b>Murph</b> · <b>Vik</b> · Brian</span>', 'Hardest'],
-    [who('Vik', 'Premier', '4-5', true), '<span style="white-space:normal">Brian · Devin · Brendan · <b>Ryan</b> · <b>Murph</b></span>', '2nd hardest'],
-    [who('Murph', 'Premier', '5-4', true), '<span style="white-space:normal">Robbie · John · <b>Ryan</b> · Brendan · <b>Vik</b></span>', 'Middle']
+  h += '<p>They can, but I wouldn’t bet on it. Ryan is a game up on Murph and two up on Vik, and he just added Joe Burrow to a lineup that already had Kenneth Walker, CeeDee Lamb and Trey McBride. He has the best quarterback, running back, receiver and tight end combination of the three, and it isn’t close.</p>';
+  h += '<p>What keeps this interesting is Ryan’s schedule. It’s the toughest left in the league, and the division gets decided head to head:</p>';
+  h += tbl(['Team', 'Weeks 10–14'], [
+    ['<b>Ryan</b> (6-3)', '<span style="white-space:normal">John · Brendan · <b>Murph</b> · <b>Vik</b> · Brian</span>'],
+    ['<b>Vik</b> (4-5)', '<span style="white-space:normal">Brian · Devin · Brendan · <b>Ryan</b> · <b>Murph</b></span>'],
+    ['<b>Murph</b> (5-4)', '<span style="white-space:normal">Robbie · John · <b>Ryan</b> · Brendan · <b>Vik</b></span>']
   ]);
-  h += '<p><b>Ryan</b> was already a top-three scorer, and Burrow makes this roster the second-best weekly lineup in the league. Kenneth Walker (RB2), CeeDee Lamb (WR2) and Trey McBride (TE1) give him an edge at three spots most weeks. A split of the Week 12 Murph and Week 13 Vik games almost certainly wraps up the division.</p>';
-  h += '<p><b>Vik</b> has the best backfield in the league in Bucky Irving (RB5), D’Andre Swift (RB8) and Derrick Henry (RB11), and Purdy fixed his quarterback spot for $4. But 4-5 means he needs to make up two games, and his schedule opens with Brian. The more realistic prize is the Premier’s second automatic bid, which is a big part of why he makes the playoffs 85% of the time.</p>';
-  h += '<p><b>Murph</b> is a game closer than Vik but projects as the weakest of the three. He has Jordan Love (QB3) and Tee Higgins (WR6), but no tight end to speak of, and he stood pat at the deadline while everyone around him reloaded. His path is clear, though: beat Ryan in Week 12 and Vik in Week 14.</p>';
+  h += '<p>If Ryan splits Murph in Week 12 and Vik in Week 13, it’s over. If he drops both, all bets are off.</p>';
+  h += '<p><b>Vik</b> is the more dangerous challenger. Bucky Irving, D’Andre Swift and Derrick Henry are the best backfield in the league, and the $4 Purdy deal fixed his one real hole. The problem is the record: two games is a lot to make up in five weeks, and the first of them is against Brian. The more realistic prize for Vik is the Premier’s second automatic bid, and he’s in great position to take it.</p>';
+  h += '<p><b>Murph</b> is closer in the standings but further away in talent. Jordan Love and Tee Higgins have been terrific, but there’s no tight end on that roster worth starting, and he sat on his hands while everyone around him reloaded. To win the division he has to beat Ryan in Week 12 and Vik in Week 14, and I’m not sure he has the horses.</p>';
 
   h += '<h2>If Ryan hangs on: Brian or Ryan for the 1 seed?</h2>';
-  h += '<p>Under the seeding rules the Premier winner gets a bye, the best remaining record gets the other bye, and the <b>1 seed goes to whichever of those two has the better record</b>, with the right to pick its opponent. If Ryan wins the Premier and Brian takes the other bye, which happens in most simulations, the 1 seed comes down to the two of them.</p>';
-  h += '<p><b>Brian is the heavy favorite: he takes the 1 seed in 81% of the seasons where Ryan wins the division.</b> He starts a game up at 7-2. He’s already the league’s top scorer at 125.1 a game, and after the Allen, Likely, Adams and Pollard additions he projects about 12 points a week better than anyone. His remaining schedule is easier too: Vik, Tom, Drew, Chris, then Ryan.</p>';
-  h += '<p>Which brings us to <b>Week 14</b>. This year the league made the final week <b>rivalry week</b>, and it couldn’t have lined up better: <b>Ryan vs. Brian</b> to close the regular season. They haven’t played each other yet, so that game is also the head-to-head tiebreaker if they finish level. In nearly half of the seasons where Ryan wins the Premier, the Week 14 result decides who gets the 1 seed. Two more rivalry games could matter too: <b>Murph vs. Vik</b> could settle the Premier’s second automatic bid, and <b>Tom vs. Gray</b> is Gray’s last chance to slip.</p>';
+  h += '<p>Quick refresher on the rules: the Premier winner gets a bye, the best remaining record gets the other one, and the <b>1 seed goes to whichever of those two has the better record</b>, along with the right to pick its opponent. If Ryan wins the Premier, that almost certainly means Ryan vs. Brian for the top spot.</p>';
+  h += '<p>Brian has the edge. He’s a game up at 7-2, he was already the league’s top scorer, and then he went out and added Josh Allen, Isaiah Likely, Davante Adams and Tony Pollard. On paper that’s the best lineup in the league by a comfortable margin. His road is easier too: Vik, Tom, Drew, Chris, then Ryan. Ryan has to get through Murph, Vik and John first.</p>';
+  h += '<p>And that’s where <b>Week 14</b> comes in. This year the league made the final week <b>rivalry week</b>, and you couldn’t have scripted it better: <b>Ryan vs. Brian</b> to close the regular season. They haven’t played each other yet, so that game doubles as the head-to-head tiebreaker if they finish level. If Ryan can close the one-game gap by then, the 1 seed gets decided on the field, the way it should be. Two other rivalry games could matter as well: <b>Murph vs. Vik</b> might settle the Premier’s second auto bid, and <b>Tom vs. Gray</b> is the last chance for Gray to trip up.</p>';
 
   h += '<h2>Can Brendan still make the playoffs?</h2>';
-  h += '<p><b>Mathematically yes, realistically no: 14%.</b> The strange part is that Brendan holds the 4 seed today at 5-4. But in one week he traded Burrow and Adams, and with Nacua and Jacobs out his projected weekly score falls from 117.9 to about 95, the lowest of any team still alive. His remaining slate is Tom, Ryan, Vik, Murph, Chris, the third-hardest in the league. The seasons where he gets in are the ones where he steals the Premier’s second auto bid by beating Vik and Murph head to head.</p>';
-  h += '<p>He isn’t walking away empty-handed, either. His $232 for 2027 is third in the league, and Nacua is a keeper option next year at $69.</p>';
+  h += '<p>Technically, yes. Strangely, he holds the 4 seed today at 5-4. But in the span of a week he traded Burrow and Davante Adams, and he’s playing without Puka Nacua and Josh Jacobs. That isn’t the team that got him to 5-4. It’s a team built to survive the next five weeks, not win them.</p>';
+  h += '<p>The schedule doesn’t help: Tom, Ryan, Vik, Murph, Chris. The only real path runs through beating Vik and Murph head to head and stealing the Premier’s second bid, and that’s a lot to ask of this lineup. Brendan made his choice, and it was 2027. With $232 in next year’s dollars and Nacua keepable at $69, it’s a defensible one.</p>';
 
   h += '<h2>Can John get in from under .500?</h2>';
-  h += '<p><b>Better than you’d think: 69%, ahead of Murph despite a worse record.</b> John has been unlucky. He’s fourth in the league in scoring at 120.8 a game, with Brock Bowers (TE2), George Kittle, Drake Maye (QB4) and Chris Olave (WR9). That gives him two ways in: a wildcard on record, or the points-for 6 seed, where he’s 16.35 behind Vik.</p>';
-  h += '<p>His schedule: Ryan, Murph, <b>Gray</b>, Robbie, Devin. The Week 12 Gray game is the swing game of the whole wildcard race. John’s lone deadline move was a $31 waiver claim on Corey Kiner.</p>';
+  h += '<p>Don’t sleep on John. He’s 4-5, but he’s been one of the unluckiest teams in the league: fourth in scoring, with Brock Bowers and George Kittle at tight end, Drake Maye at quarterback and Chris Olave out wide. Teams that score like that don’t usually stay under .500.</p>';
+  h += '<p>He has two ways in. He can win his way into a wildcard, or he can sneak in as the points-for 6 seed, where he’s only 16 points behind Vik. His schedule is a mixed bag: Ryan and Murph first, then <b>Gray</b> in Week 12, then Robbie and Devin. That Week 12 game against Gray might be the biggest game of the wildcard race. Win it and John is in the driver’s seat; lose it and he’s scoreboard-watching.</p>';
 
   h += '<h2>Will Gray miss despite his stars?</h2>';
-  h += '<p><b>Probably not: 82%.</b> Gray has three of the best players in the league in Jahmyr Gibbs (RB1, 24.0 a game), Christian McCaffrey (RB4) and Amon-Ra St. Brown (WR8), yet he sits at 5-4 and sixth in scoring. With no Third Division auto bid he has to earn a wildcard or the points seed.</p>';
-  h += '<p>What saves him is the schedule. Gray has <b>the easiest remaining slate in the league by a mile</b>: Chris, Robbie, John, Devin and Tom. Four of the five are sellers, and their projected scores average about 109 a week, four points softer than the next-easiest slate in the league. If he misses, it’ll be because John beat him in Week 12.</p>';
+  h += '<p>It would be a shock. Gray has three of the best players in the league in Jahmyr Gibbs, Christian McCaffrey and Amon-Ra St. Brown, and somehow he’s only 5-4 and sixth in scoring. Some of that is depth, which is exactly what he went after in the Devin trade.</p>';
+  h += '<p>What should get him over the line is the schedule. Gray has <b>the easiest remaining slate in the league, and it isn’t close</b>: Chris, Robbie, John, Devin and Tom. Four of those five are sellers. The one game that scares me is John in Week 12. If Gray handles that, he’s in.</p>';
 
   h += '<h2>Other storylines</h2>';
   h += '<ul>' +
-    '<li><b>Drew is 6-3 and nobody’s talking about him.</b> He’s ninth in points for (967.0), the lowest of any contender, and he didn’t make a move. His 73% comes from the second-easiest schedule left (Devin, Chris, Brian, Tom, Robbie). But a three-way tie on record goes to points for, and that’s a tiebreaker Drew would lose.</li>' +
-    '<li><b>Brian is at the floor.</b> Six deadline-week trades left him at exactly $140 for 2027. He can’t trade away another 2027 dollar, and he sent a devy WR out the door to make the roster work. It’s championship-or-bust, and the odds say it’s worth it.</li>' +
+    '<li><b>Drew is 6-3 and nobody’s talking about him.</b> He’s ninth in points for (967.0), the lowest of any contender, and he didn’t make a move. He does have the second-easiest schedule left (Devin, Chris, Brian, Tom, Robbie). But a three-way tie on record goes to points for, and that’s a tiebreaker Drew would lose to just about anyone.</li>' +
+    '<li><b>Brian is at the floor.</b> Six deadline-week trades left him at exactly $140 for 2027. He can’t trade away another 2027 dollar, and he sent a devy WR out the door to make the roster work. It’s championship or bust, and right now he looks like the team to beat.</li>' +
     '<li><b>The points race for the 6 seed.</b> Vik 1,103.3, John 1,087.0, Brendan 1,060.8, Gray 1,059.3. If Vik climbs into a bid on record, John inherits the inside track.</li>' +
     '<li><b>Justin Jefferson</b>, the $44 franchise-tagged receiver Vik got from Tom back in Week 6, is producing WR24 numbers (10.0 a game), the most expensive underperformer on any contender.</li>' +
     '</ul>';
