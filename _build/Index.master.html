@@ -239,6 +239,21 @@
   tr.wkhead:first-child td { border-top: 0; }
   .pfr-hi { color: #b3261e; font-weight: 800; }
   .pfr-lo { color: var(--primary); font-weight: 800; }
+  /* ESPN-style clinch codes beside team names */
+  .clch { display: inline-block; min-width: 15px; padding: 0 4px; margin-right: 5px; border-radius: 4px; font-size: 10.5px;
+    font-weight: 800; line-height: 16px; text-align: center; color: #fff; vertical-align: 1px; }
+  .clch-z { background: #0b4d22; } .clch-y { background: #2f7d45; } .clch-x { background: #5fa673; } .clch-e { background: #b3362a; }
+  .clchkey { line-height: 2; }
+  table.stand .sm { display: none; }
+  td.tnm { white-space: nowrap; }
+  @media (max-width: 700px) {
+    table.stand { font-size: 12.5px; }
+    table.stand th { font-size: 10px; letter-spacing: .1px; padding: 7px 4px; }
+    table.stand td { padding: 7px 4px; }
+    table.stand .mhide, table.stand .lg { display: none; }
+    table.stand .sm { display: inline; }
+    table.stand .chip { padding: 1px 5px; font-size: 10px; }
+  }
   .schS, .schonly { display: none; }
   .schsub { color: var(--muted); font-size: 11.5px; font-weight: 400; }
   @media (max-width: 700px) {
@@ -4428,7 +4443,44 @@ function curPlayoffMath_(c) {
   for (var so in c.seeds) if (c.seeds[so] === 6) sixOwner = so;
   if (sixOwner) bench = c.st[sixOwner].pf;
   else owners.forEach(function (o) { if ((c.auto || []).indexOf(o) === -1) bench = Math.max(bench, c.st[o].pf); });
-  return { magic: magic, magicRaw: magicRaw, elim: elim, remain: remain, bench: bench };
+  // division title: more wins than any division rival can still reach
+  function divClinched(o) {
+    var rv = rivals(o);
+    return rv.length > 0 && rv.every(function (x) { return c.st[o].w > maxWv[x]; });
+  }
+  // first-round bye: win the Premier, or out-win everyone except (at most) the top
+  // Premier team, who would take the other bye as Premier winner
+  function byeClinched(o) {
+    if (c.div[o] === 'Premier' && divClinched(o)) return true;
+    var others = owners.filter(function (x) { return x !== o; });
+    var prem = others.filter(function (x) { return c.div[x] === 'Premier'; }).map(function (x) { return maxWv[x]; }).sort(function (a, b) { return b - a; });
+    var non = others.filter(function (x) { return c.div[x] !== 'Premier'; }).map(function (x) { return maxWv[x]; });
+    var bar = Math.max(non.length ? Math.max.apply(null, non) : -1, prem.length > 1 ? prem[1] : -1);
+    return c.st[o].w > bar;
+  }
+  // one code per team, most important first: z bye, y division, x berth, e out of auto/wildcard
+  function code(o) {
+    if (byeClinched(o)) return 'z';
+    if (divClinched(o)) return 'y';
+    if (magic(o) === 0) return 'x';
+    if (elim(o).autoDead) return 'e';
+    return '';
+  }
+  return { magic: magic, magicRaw: magicRaw, elim: elim, remain: remain, bench: bench,
+    divClinched: divClinched, byeClinched: byeClinched, code: code };
+}
+function clinchTag_(code) {
+  return code ? '<span class="clch clch-' + code + '">' + code + '</span>' : '';
+}
+function clinchLegend_(PM, owners) {
+  var used = {};
+  owners.forEach(function (o) { var k = PM.code(o); if (k) used[k] = 1; });
+  if (!Object.keys(used).length) return '';
+  var defs = [['z', 'clinched a first-round bye'], ['y', 'clinched the division title'], ['x', 'clinched a playoff berth'],
+    ['e', 'out of the auto-bid and wildcard races \u2014 the 6 seed (most points for) is the only way in']];
+  return '<div class="note clchkey">' + defs.filter(function (d) { return used[d[0]]; }).map(function (d) {
+    return clinchTag_(d[0]) + ' ' + d[1];
+  }).join(' &nbsp;\u00b7&nbsp; ') + '</div>';
 }
 // ESPN-style clinch/elimination scenarios for this week's games: enumerate every
 // outcome of the week (2^games), test the deterministic clinch for each, then
@@ -4549,10 +4601,6 @@ function renderCurrent() {
   var html = '';
   var PM = curPlayoffMath_(c);
   var showMagic = c.played >= 8;
-  function magCell(o) {
-    var m = PM.magic(o);
-    return m === 0 ? '<span class="chip div">Clinched \u2713</span>' : m == null ? '\u2014' : String(m);
-  }
 
   // division standings
   ['Premier', 'Second', 'Third'].concat(Object.keys(c.divRanks).filter(function (d) {
@@ -4561,24 +4609,23 @@ function renderCurrent() {
     var list = c.divRanks[d];
     if (!list) return;
     var leaderW = c.st[list[0]].w, leaderL = c.st[list[0]].l;
-    html += '<h2>' + d + ' Division</h2><div class="twrap"><table class="fit"><thead><tr>' +
+    html += '<h2>' + d + ' Division</h2><div class="twrap"><table class="fit stand"><thead><tr>' +
       '<th class="num">RK</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num">%</th>' +
-      '<th class="num">GB</th><th>Streak</th><th>Last 10</th><th class="num">Avg PF</th>' +
-      (showMagic ? '<th class="num">Magic #</th>' : '') + '</tr></thead><tbody>';
+      '<th class="num">GB</th><th><span class="lg">Streak</span><span class="sm">Strk</span></th><th class="mhide">Last 10</th><th class="num">Avg PF</th>' +
+      '</tr></thead><tbody>';
     var divPts = 0, divGames = 0;
     list.forEach(function (o, i) {
       var b = curRowBits(o, c);
       divPts += c.st[o].pf; divGames += c.st[o].w + c.st[o].l;
       var gb = i === 0 ? '\u2014' : ((leaderW - b.w) + (b.l - leaderL)) / 2;
-      html += '<tr><td class="num">' + (i + 1) + '</td><td><b>' + o + '</b>' +
-        (c.seeds[o] ? ' <span class="chip div">Seed ' + c.seeds[o] + '</span>' : '') + '</td>' +
+      html += '<tr><td class="num">' + (i + 1) + '</td><td class="tnm">' + clinchTag_(PM.code(o)) + '<b>' + o + '</b>' +
+        (c.seeds[o] ? ' <span class="chip div"><span class="lg">Seed </span><span class="sm">#</span>' + c.seeds[o] + '</span>' : '') + '</td>' +
         '<td class="num">' + b.w + '</td><td class="num">' + b.l + '</td><td class="num">' + b.pct + '</td>' +
-        '<td class="num">' + gb + '</td><td>' + b.streak + '</td><td>' + b.last10 + '</td>' +
-        '<td class="num">' + b.avgPF + '</td>' +
-        (showMagic ? '<td class="num">' + magCell(o) + '</td>' : '') + '</tr>';
+        '<td class="num">' + gb + '</td><td>' + b.streak + '</td><td class="mhide">' + b.last10 + '</td>' +
+        '<td class="num">' + b.avgPF + '</td></tr>';
     });
     html += '</tbody></table></div>';
-    if (showMagic && d === 'Third') html += '<div class="note">Magic # = wins that lock a playoff auto bid no matter what anyone else does (division or wild-card path, whichever is shorter).</div>';
+    if (d === 'Third') html += clinchLegend_(PM, c.owners);
     if (divGames) html += '<div class="note">Division average per game: ' + n1(divPts / divGames) + '</div>';
   });
 
@@ -4627,7 +4674,7 @@ function renderCurrent() {
       '<th>Seed</th><th>Team</th><th>Div</th><th class="num">W</th><th class="num">L</th><th class="num">Avg PF</th></tr></thead><tbody>';
     c.auto.forEach(function (o) {
       var b = curRowBits(o, c);
-      html += '<tr class="qrow"><td><b>' + c.seeds[o] + (c.seeds[o] <= 2 ? ' (BYE)' : '') + '</b></td><td><b>' + o + '</b></td>' +
+      html += '<tr class="qrow"><td><b>' + c.seeds[o] + (c.seeds[o] <= 2 ? ' (BYE)' : '') + '</b></td><td class="tnm">' + clinchTag_(PM.code(o)) + '<b>' + o + '</b></td>' +
         '<td>' + c.div[o] + '</td><td class="num">' + b.w + '</td><td class="num">' + b.l + '</td><td class="num">' + b.avgPF + '</td></tr>';
     });
     html += '</tbody></table></div>';
@@ -4645,10 +4692,11 @@ function renderCurrent() {
         ? (isSix ? '6 <span style="color:var(--muted);font-size:11px">(PF)</span>' : '<b>' + c.seeds[o] + (c.seeds[o] <= 2 ? ' (BYE)' : '') + '</b>')
         : String(rkNum++);
       html += '<tr' + (isSeeded && !isSix ? ' class="qrow"' : '') + '><td>' + lab + '</td>' +
-        '<td>' + (isSeeded && !isSix ? '<b>' + o + '</b>' : o) + '</td>' +
+        '<td class="tnm">' + clinchTag_(PM.code(o)) + (isSeeded && !isSix ? '<b>' + o + '</b>' : o) + '</td>' +
         '<td>' + c.div[o] + '</td><td class="num">' + b.w + '</td><td class="num">' + b.l + '</td><td class="num">' + b.avgPF + '</td></tr>';
     });
     html += '</tbody></table></div>';
+    html += clinchLegend_(PM, c.owners);
 
     // 6th seed race
     var chasing = c.owners.filter(function (o) { return c.qualified.indexOf(o) === -1; })
