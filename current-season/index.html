@@ -1102,7 +1102,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1114.1504';
+var RTB_BUILD = '1117.1048';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -4739,16 +4739,15 @@ function renderCurrent() {
     html += '<h2 style="font-size:15px">Wildcard standings</h2><div class="twrap"><table class="fit"><thead><tr>' +
       '<th>Seed / RK</th><th>Team</th><th>Div</th><th class="num">W</th><th class="num">L</th><th class="num">Avg PF</th></tr></thead><tbody>';
     var nonAuto = c.owners.filter(function (o) { return c.auto.indexOf(o) === -1; });
-    var wcOrder = nonAuto.filter(function (o) { return c.seeds[o]; })
-      .sort(function (a, b) { return c.seeds[a] - c.seeds[b]; })
-      .concat(c.rank(nonAuto.filter(function (o) { return !c.seeds[o]; })));
+    // ordered by record (league tiebreakers); the points-for 6 seed keeps its seed label
+    var wcOrder = c.rank(nonAuto);
     var rkNum = 7;
     wcOrder.forEach(function (o) {
       var b = curRowBits(o, c);
       var isSeeded = !!c.seeds[o];
       var isSix = c.seeds[o] === 6;
       var lab = isSeeded
-        ? (isSix ? '6' : '<b>' + c.seeds[o] + (c.seeds[o] <= 2 ? ' (BYE)' : '') + '</b>')
+        ? (isSix ? '6 <span style="color:var(--muted);font-size:11px">(PF)</span>' : '<b>' + c.seeds[o] + (c.seeds[o] <= 2 ? ' (BYE)' : '') + '</b>')
         : String(rkNum++);
       html += '<tr' + (isSeeded && !isSix ? ' class="qrow"' : '') + '><td>' + lab + '</td>' +
         '<td>' + (isSeeded && !isSix ? '<b>' + o + '</b>' : o) + '</td>' +
