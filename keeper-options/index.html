@@ -1117,7 +1117,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1117.1241';
+var RTB_BUILD = '1117.1242';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -4571,10 +4571,9 @@ function curPlayoffMath_(c) {
     if (elim(o).autoDead) return 'e';
     return '';
   }
-  // relegation: locked into last place in the Premier or Second (the Third has no drop).
+  // locked into last place in the division (= relegation in the Premier and Second).
   // Ties count against the team, so it only shows once even a tie can't save them.
   function relegated(o) {
-    if (c.div[o] !== 'Premier' && c.div[o] !== 'Second') return false;
     var rv = rivals(o);
     return rv.length > 0 && rv.every(function (x) { return maxWv[o] < c.st[x].w; });
   }
@@ -4593,7 +4592,7 @@ function clinchLegend_(PM, owners) {
   if (!Object.keys(used).length) return '';
   var defs = [['z', 'clinched a first-round bye'], ['y', 'clinched the division title'], ['x', 'clinched a playoff berth'],
     ['e', 'out of the auto-bid and wildcard races \u2014 the 6 seed (most points for) is the only way in'],
-    ['r', 'locked into last place in the division \u2014 relegated next season']];
+    ['r', 'locked into last place in the division (in the Premier and Second, that means relegation next season)']];
   return '<div class="note clchkey">' + defs.filter(function (d) { return used[d[0]]; }).map(function (d) {
     return clinchTag_(d[0]) + ' ' + d[1];
   }).join(' &nbsp;\u00b7&nbsp; ') + '</div>';
