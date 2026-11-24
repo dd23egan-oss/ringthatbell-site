@@ -710,6 +710,8 @@
     <div class="controls" id="recFilters" style="display:none">
       <span class="cwrap" id="recFY"><label for="selRYear">Year</label><select id="selRYear"></select></span>
       <span class="cwrap" id="recFO"><label for="selROwner">Owner</label><select id="selROwner"></select></span>
+      <span class="cwrap" id="recFP" style="display:none"><label for="selRPos">Position</label><select id="selRPos">
+        <option>QB</option><option>RB</option><option>WR</option><option value="RB+WR">RB + WR</option><option>TE</option><option>D/ST</option><option>K</option></select></span>
       <span class="cwrap" id="recFS"><label for="selRSet">Games</label><select id="selRSet"></select></span>
     </div>
     <h2 id="recTitle"></h2>
@@ -2017,14 +2019,19 @@ function seasonSeedingHtml_(y) {
     var pc = prem.filter(function (r) { return r[S('DivisionChampion')] === true; })[0];
     var p2 = prem.filter(function (r) { return r !== pc; }).sort(byRec)[0];
     var sc = q.filter(function (r) { return r[S('Division')] === 'Second' && r[S('DivisionChampion')] === true; })[0];
+    // 2017: John and Vik tied atop the Second at 8-6 and the bid went to John on points for
+    // (historical final standings sheet), even though Vik is recorded as division champion
+    var SECOND_BID = { 2017: 'John' };
+    if (SECOND_BID[y]) sc = q.filter(function (r) { return r[S('Owner')] === SECOND_BID[y]; })[0] || sc;
     if (pc) how[pc[S('Owner')]] = ['auto', 'Auto bid \u00b7 Premier champion'];
     if (p2) how[p2[S('Owner')]] = ['auto', 'Auto bid \u00b7 Premier runner-up'];
-    if (sc) how[sc[S('Owner')]] = ['auto', 'Auto bid \u00b7 Second champion'];
+    if (sc) how[sc[S('Owner')]] = ['auto', 'Auto bid \u00b7 Second ' + (SECOND_BID[y] ? 'winner (points tiebreak)' : 'champion')];
     var rest = q.filter(function (r) { return !how[r[S('Owner')]]; }).sort(byRec);
     // the points-for team is the one with the fewest wins; if that is a tie, the one with the most points
     var minW = rest.length ? rest[rest.length - 1][S('Wins')] : 0;
-    var pfT = rest.length === 3 ? rest.filter(function (r) { return r[S('Wins')] === minW; })
-      .sort(function (a, b) { return b[S('PointsFor')] - a[S('PointsFor')]; })[0] : null;
+    var pfT = rest.filter(function (r) { return Number(r[S('Seed')]) === 6; })[0] ||
+      (rest.length === 3 ? rest.filter(function (r) { return r[S('Wins')] === minW; })
+      .sort(function (a, b) { return b[S('PointsFor')] - a[S('PointsFor')]; })[0] : null);
     rest.forEach(function (r) {
       how[r[S('Owner')]] = r === pfT ? ['pf', '6th spot \u00b7 most points for'] : ['wc', 'Wildcard \u00b7 record'];
     });
@@ -2152,7 +2159,7 @@ function fillRecordFilters() {
   var yrs = uniqYears(DATA.games.rows, G('Year'));
   el('selRYear').innerHTML = '<option value="All years">All years</option>' + yrs.map(function (y) { return '<option>' + y + '</option>'; }).join('');
   el('selROwner').innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
-  ['selRYear', 'selROwner', 'selRSet'].forEach(function (id) {
+  ['selRYear', 'selROwner', 'selRSet', 'selRPos'].forEach(function (id) {
     el(id).onchange = function () { ensureAggs(); renderRecords(); };
   });
 }
@@ -2182,7 +2189,7 @@ function ensureAggs() {
 }
 var RECGROUPS = [
   ['careers', 'Careers', ['career', 'thresholds']],
-  ['seasons', 'Seasons', ['bestrec', 'worstrec', 'bestseason', 'highseason', 'lowseason', 'paseason', 'lowpaseason', 'diffhi', 'difflo', 'lossseason']],
+  ['seasons', 'Seasons', ['bestrec', 'worstrec', 'bestseason', 'highseason', 'lowseason', 'paseason', 'lowpaseason', 'diffhi', 'difflo', 'lossseason', 'posbest', 'posworst']],
   ['weeks', 'Single weeks', ['highgame', 'lowgame', 'bestloss', 'luckywin', 'hiweek', 'loweek']],
   ['matchups', 'Matchups', ['highmatch', 'lowmatch', 'blowout', 'closest']],
   ['streaks', 'Streaks', ['streakwl', 'streak100', 'streak120', 'streakseason', 'postreaks']],
@@ -2203,6 +2210,8 @@ var RECLABELS = {
   diffhi: ['Best point differential', 'Best point differential in a season'],
   difflo: ['Worst point differential', 'Worst point differential in a season'],
   lossseason: ['Best losing teams', 'Most points by a team with a losing record'],
+  posbest: ['Best by position', 'Best seasons by position (points per week)'],
+  posworst: ['Worst by position', 'Worst seasons by position (points per week)'],
   highgame: ['Highest scores', 'Highest single-week scores'],
   lowgame: ['Lowest scores', 'Lowest single-week scores'],
   bestloss: ['Most points in a loss', 'Most points scored in a loss'],
@@ -2289,7 +2298,9 @@ function renderRecords() {
   if (isPost) v = v.slice(2);
   if (isPost && v === 'career') v = 'pcareer';
   var usesSet = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'highseason', 'lowseason', 'paseason', 'lowpaseason', 'diffhi', 'difflo', 'hiweek', 'loweek', 'pcareer'].indexOf(v) > -1;
-  var usesYear = usesSet || ['allplay', 'allplayyear', 'lossseason', 'bestrec', 'worstrec'].indexOf(v) > -1;
+  var isPos = v === 'posbest' || v === 'posworst';
+  el('recFP').style.display = isPos ? 'flex' : 'none';
+  var usesYear = usesSet || ['allplay', 'allplayyear', 'lossseason', 'bestrec', 'worstrec', 'posbest', 'posworst'].indexOf(v) > -1;
   var usesOwner = usesYear && ['allplay', 'hiweek', 'loweek', 'pcareer'].indexOf(v) === -1;
   el('recFilters').style.display = usesYear ? 'flex' : 'none';
   el('recFY').style.display = usesYear ? 'flex' : 'none';
@@ -2332,6 +2343,35 @@ function renderRecords() {
       isDf ? 'Total diff' : isPA ? 'Total PA' : 'Total PF', isDf ? 'Diff / game' : isPA ? 'Avg PA / game' : 'Avg PF / game'], seaRows, [0, 2, 3, 5, 6]);
     el('recNote').textContent = 'Ranked by the per-game figure so seasons of different lengths compare fairly.' +
       (isPost ? ' One row per owner per post-season.' : ' Use the Games filter to switch between all games, regular season only, or the post-season.') + SETNOTE;
+    return;
+  }
+  if (isPos) {
+    if (!POSSC) {
+      el('recTable').innerHTML = ''; el('recNote').textContent = 'Loading positional scoring\u2026';
+      if (POSSCLOADING) setTimeout(function () { if (CURPAGE === 'records') renderRecords(); }, 900);
+      else ensurePosscData(function () { if (CURPAGE === 'records') renderRecords(); });
+      return;
+    }
+    var fpos = el('selRPos').value, wkN = {}, tot = {};
+    (POSSC.weeks || []).forEach(function (r) { wkN[r[0] + '|' + r[1]] = r[2]; });
+    (POSSC.pts || []).forEach(function (r) {
+      if (fpos === 'RB+WR' ? (r[2] !== 'RB' && r[2] !== 'WR') : r[2] !== fpos) return;
+      tot[r[0] + '|' + r[1]] = (tot[r[0] + '|' + r[1]] || 0) + r[3];
+    });
+    var cy = 0; DATA.games.rows.forEach(function (r) { cy = Math.max(cy, Number(r[G('Year')])); });
+    var pl = Object.keys(tot).map(function (k0) {
+      var q0 = k0.split('|'); return { o: q0[0], y: Number(q0[1]), n: wkN[k0] || 0, t: tot[k0] };
+    }).filter(function (x) {
+      return x.n >= 8 && (fy === 'All years' || x.y === Number(fy)) && (fo === 'All owners' || x.o === fo);
+    });
+    var lgAvg = pl.length ? pl.reduce(function (a0, x) { return a0 + x.t / x.n; }, 0) / pl.length : 0;
+    pl.sort(function (a, b) { return v === 'posbest' ? b.t / b.n - a.t / a.n : a.t / a.n - b.t / b.n; });
+    sortableTable('recTable', ['#', 'Owner', 'Year', 'Pts / week', 'Total pts', 'Weeks'],
+      pl.slice(0, 25).map(function (x, i0) {
+        return [i0 + 1, '<b>' + x.o + '</b>', x.y + (x.y === cy ? '*' : ''), '<b>' + (x.t / x.n).toFixed(2) + '</b>', n1(x.t), x.n];
+      }), [0, 3, 4, 5], [0]);
+    el('recNote').textContent = 'Points per week from every starter at the position, all games that season (minimum 8 weeks). Average across the seasons shown: ' +
+      lgAvg.toFixed(2) + ' per week. * = season in progress.';
     return;
   }
   if (v === 'bestrec' || v === 'worstrec') {
