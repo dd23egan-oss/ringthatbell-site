@@ -2019,17 +2019,17 @@ function seasonSeedingHtml_(y) {
     var pc = prem.filter(function (r) { return r[S('DivisionChampion')] === true; })[0];
     var p2 = prem.filter(function (r) { return r !== pc; }).sort(byRec)[0];
     var sc = q.filter(function (r) { return r[S('Division')] === 'Second' && r[S('DivisionChampion')] === true; })[0];
-    // 2017: John and Vik tied atop the Second at 8-6 and the bid went to John on points for
-    // (historical final standings sheet), even though Vik is recorded as division champion
-    var SECOND_BID = { 2017: 'John' };
-    if (SECOND_BID[y]) sc = q.filter(function (r) { return r[S('Owner')] === SECOND_BID[y]; })[0] || sc;
+    // 2017: Vik won the Second (swept John, 6-0 in the division) and took the bid; Robbie and Chris were
+    // the wildcards per the historical standings, which leaves John as the points-for spot.
+    var PF_SPOT = { 2017: 'John' };
     if (pc) how[pc[S('Owner')]] = ['auto', 'Auto bid \u00b7 Premier champion'];
     if (p2) how[p2[S('Owner')]] = ['auto', 'Auto bid \u00b7 Premier runner-up'];
-    if (sc) how[sc[S('Owner')]] = ['auto', 'Auto bid \u00b7 Second ' + (SECOND_BID[y] ? 'winner (points tiebreak)' : 'champion')];
+    if (sc) how[sc[S('Owner')]] = ['auto', 'Auto bid \u00b7 Second champion'];
     var rest = q.filter(function (r) { return !how[r[S('Owner')]]; }).sort(byRec);
     // the points-for team is the one with the fewest wins; if that is a tie, the one with the most points
     var minW = rest.length ? rest[rest.length - 1][S('Wins')] : 0;
-    var pfT = rest.filter(function (r) { return Number(r[S('Seed')]) === 6; })[0] ||
+    var pfT = rest.filter(function (r) { return r[S('Owner')] === PF_SPOT[y]; })[0] ||
+      rest.filter(function (r) { return Number(r[S('Seed')]) === 6; })[0] ||
       (rest.length === 3 ? rest.filter(function (r) { return r[S('Wins')] === minW; })
       .sort(function (a, b) { return b[S('PointsFor')] - a[S('PointsFor')]; })[0] : null);
     rest.forEach(function (r) {
