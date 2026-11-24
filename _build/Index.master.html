@@ -34,6 +34,13 @@
   .navmenu button { display: block; width: 100%; text-align: left; color: var(--text) !important;
     padding: 9px 12px; border-radius: 8px; font-size: 13.5px; white-space: nowrap; }
   .navmenu button:hover { background: var(--primarySoft); }
+  .navmenu .navhdr { font-size: 10.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--primary);
+    padding: 9px 12px 3px; margin-top: 4px; border-top: 1px solid var(--line); }
+  .navmenu .navhdr:first-child { border-top: none; margin-top: 0; padding-top: 5px; }
+  .navmenu button.navind { padding-left: 22px; }
+  .mobsec .mobhdr { font-size: 10.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: rgba(255,255,255,.6);
+    padding: 10px 20px 2px 32px; }
+  nav.mobile button.mobsub.mobind { padding-left: 44px; }
   .navmenu button.active { background: var(--primarySoft); color: var(--primary) !important; font-weight: 700; }
   nav.mobile { max-height: calc(100vh - 58px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
   nav.mobile button.mobhead { display: flex; justify-content: space-between; align-items: center; width: 100%;
@@ -170,6 +177,7 @@
   .advfRow input { width: 62px; padding: 5px 7px; font-size: 12.5px; }
   .advf .btn { margin-top: 9px; font-size: 12px; padding: 6px 12px; }
   .advf .note { margin-top: 7px; }
+  .advf .legrow { font-size: 12.5px; line-height: 1.5; margin-top: 7px; }
   .keepCalc { position: sticky; top: 6px; z-index: 6; display: none; padding: 10px 14px; font-size: 13px;
     border-left: 4px solid var(--primary2); margin-bottom: var(--s2); }
   .keepCalc .capbad { color: #a33a2e; font-weight: 800; }
@@ -234,6 +242,16 @@
   .twtab td.better { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07) !important; }
   td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
   span.bestdiv { display: inline-block; }
+  table.dhy { border-collapse: collapse; border: 2px solid #1f2d25; }
+  table.dhy th, table.dhy td { border: 1px solid #c3cec6; }
+  table.dhy thead th { border-bottom: 2px solid #1f2d25; }
+  table.dhy thead tr:first-child th { border-bottom: 1px solid rgba(255,255,255,.35); }
+  table.dhy .dvl, table.dhy th.dvh { border-left: 3px solid #1f2d25; }
+  table.dhy th.dvh { text-align: center; color: #fff; font-size: 13px; letter-spacing: .4px; }
+  table.dhy th.dvc0 { background: #157a38; } table.dhy th.dvc1 { background: #1d5fa8; } table.dhy th.dvc2 { background: #b3661a; }
+  table.dhy th.dvs0 { background: #dff0e4; } table.dhy th.dvs1 { background: #dde9f7; } table.dhy th.dvs2 { background: #f8e8d6; }
+  table.dhy tbody tr:nth-child(even) td { background: #f6f8f6; }
+  table.dhy tbody td.bestdiv { background: #cfe9d6 !important; }
   /* schedule page */
   tr.wkhead td { background: #1f5a33 !important; color: #fff; font-weight: 800; font-size: 12.5px; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px; border-top: 6px solid var(--bg, #f4f6f3); }
   tr.wkhead:first-child td { border-top: 0; }
@@ -255,6 +273,7 @@
     table.stand .chip { padding: 1px 5px; font-size: 10px; }
   }
   .schS, .schonly { display: none; }
+  .pfown { font-size: 11px; font-weight: 700; white-space: nowrap; }
   .schsub { color: var(--muted); font-size: 11.5px; font-weight: 400; }
   @media (max-width: 700px) {
     table.schtab { font-size: 12.5px; }
@@ -721,15 +740,15 @@
         <button class="btn" id="advfClear" type="button">Clear filters</button>
         <div class="note">Leave a box blank for no limit — min only means “higher than”, max only “lower than”, both together “between”. Filters stack across columns.</div>
       </details>
-      <div class="card legend">
-        <div class="legendhead">What the columns mean</div>
+      <details class="advf" id="colLegend">
+        <summary>What the columns mean</summary>
         <div class="legrow"><b>RTB pos rank by draft $</b> — where his price ranked at his position among players bought at that year’s draft (Drafted or Rookie); RB4 means three drafted RBs cost more. Keepers, franchise tags, devy and taxi players show —.</div>
         <div class="legrow"><b>Fantasy Pros ADP</b> — Fantasy Pros average draft position across all positions around draft time.</div>
         <div class="legrow"><b>Fantasy Pros pos ADP</b> — the same, within his position; WR1 is the top WR off boards.</div>
         <div class="legrow"><b>Points</b> — total fantasy points he scored in the season he was drafted.</div>
         <div class="legrow"><b>EOS rank</b> — end-of-season finish across all positions that year.</div>
         <div class="legrow"><b>EOS pos rank</b> — end-of-season finish at his position; WR5 = the #5 scoring WR.</div>
-      </div>
+      </details>
       <div class="twrap"><table id="draftTable"></table></div>
       <div class="note" id="draftNote"></div>
     </div>
@@ -745,17 +764,17 @@
     </div>
 
     <div class="dsub" id="dsub-records">
+      <div class="pills subpills" id="drecPills"></div>
       <div class="controls">
-        <label for="selDRec">Record</label>
-        <select id="selDRec">
-          <option value="poscount">Drafted by position per year</option>
-          <option value="poscost">Average cost by position</option>
-          <option value="expensive">Most expensive players</option>
-          <option value="deals">Best draft deals</option>
-          <option value="keeperhof">Keeper hall of fame</option>
-          <option value="topheavy">Budget share on priciest pick</option>
-          <option value="keepshare">Keeper budget share by owner</option>
-          <option value="spendmix">League spending by year</option>
+        <select id="selDRec" style="display:none">
+          <option value="expensive">Priciest players</option>
+          <option value="deals">Best bargains</option>
+          <option value="keeperhof">Most-kept players</option>
+          <option value="poscount">Picks by position</option>
+          <option value="poscost">Prices by position</option>
+          <option value="topheavy">Biggest splurges</option>
+          <option value="keepshare">Keeper spending</option>
+          <option value="spendmix">Where the money went</option>
         </select>
         <span class="cwrap" id="drecPosWrap" style="display:none">
           <label for="selDRPos">Position</label><select id="selDRPos"></select>
@@ -1105,7 +1124,7 @@ var RULES_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdtN5Oopj3cklw4TIE_nhu
 var NAVGROUPS = [
   { page: 'home', label: 'Home' },
   { label: 'This season', items: ['thisweek', 'current', 'schedule', 'budgets', 'tradehist', 'keepers', 'taxisquads', 'devydraft', 'rules', 'pickem'] },
-  { label: 'League history', items: ['owners', 'draft', 'budgetsall', 'seasons', 'divisions', 'records', 'h2h', 'topplayers', 'lineups', 'trophy'] },
+  { label: 'League history', items: ['#Records', 'records', 'topplayers', 'trophy', '#Standings & matchups', 'seasons', 'divisions', 'h2h', 'lineups', '#Owners & drafts', 'owners', 'draft', 'budgetsall'] },
   { page: 'constitution', label: 'Constitution' },
   { page: 'blog', label: 'Blog' }
 ];
@@ -1234,7 +1253,13 @@ function buildNav() {
     var menu = document.createElement('div');
     menu.className = 'navmenu';
     g.items.forEach(function (id) {
+      if (id.charAt(0) === '#') {
+        var nh = document.createElement('div');
+        nh.className = 'navhdr'; nh.textContent = id.slice(1);
+        menu.appendChild(nh); return;
+      }
       var ib = document.createElement('button');
+      if (g.items[0].charAt(0) === '#') ib.className = 'navind';
       ib.textContent = NAVX[id] ? NAVX[id].label : pageLabel(id); ib.dataset.page = id;
       ib.onclick = function () {
         if (id === 'rules') { window.open(RULES_URL, '_blank'); closeMenus(); return; }
@@ -1268,8 +1293,13 @@ function buildNav() {
       if (!open) { sec.classList.add('open'); head.classList.add('open'); }
     };
     g.items.forEach(function (id) {
+      if (id.charAt(0) === '#') {
+        var mh = document.createElement('div');
+        mh.className = 'mobhdr'; mh.textContent = id.slice(1);
+        sec.appendChild(mh); return;
+      }
       var mb2 = document.createElement('button');
-      mb2.className = 'mobsub';
+      mb2.className = 'mobsub' + (g.items[0].charAt(0) === '#' ? ' mobind' : '');
       mb2.textContent = NAVX[id] ? NAVX[id].label : pageLabel(id); mb2.dataset.page = id;
       mb2.onclick = function () {
         if (id === 'rules') { window.open(RULES_URL, '_blank'); closeMenus(); return; }
@@ -2461,6 +2491,17 @@ function fillDraftSelects() {
   el('selDRPos').innerHTML = '<option>All positions</option>' + poss.map(function (p) { return '<option>' + p + '</option>'; }).join('');
   el('selDROwner').innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
   el('selDRec').onchange = renderDraftRecords;
+  var dp = el('drecPills'); dp.innerHTML = '';
+  Array.prototype.forEach.call(el('selDRec').options, function (op, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'pill' + (i === 0 ? ' on' : ''); b.textContent = op.textContent;
+    b.onclick = function () {
+      el('selDRec').value = op.value;
+      dp.querySelectorAll('.pill').forEach(function (x) { x.classList.toggle('on', x === b); });
+      renderDraftRecords();
+    };
+    dp.appendChild(b);
+  });
   el('selDRPos').onchange = renderDraftRecords;
   el('selDROwner').onchange = renderDraftRecords;
   var poss = {}, cats = {};
@@ -2716,7 +2757,7 @@ function renderDraftRecords() {
         var s2 = stats(y, fp);
         return s2 ? [y, s2.n, '$' + r1(s2.avg), '$' + r1(s2.t3), '$' + r1(s2.t12)] : [y, '', '', '', ''];
       });
-      table('drecTable', ['Year', '# Drafted', 'Avg cost', 'Top 3 avg', 'Top 12 avg'], rowsF, [0, 1, 2, 3, 4]);
+      sortableTable('drecTable', ['Year', '# Drafted', 'Avg cost', 'Top 3 avg', 'Top 12 avg'], rowsF, [0, 1, 2, 3, 4]);
       if (v === 'poscount') {
         datasets = [ds(fp + ' drafted', yrs.map(function (y) { var s2 = stats(y, fp); return s2 ? s2.n : null; }), 0)];
       } else {
@@ -2734,7 +2775,7 @@ function renderDraftRecords() {
           return v === 'poscount' ? s2.n : '$' + r1(s2.avg);
         }));
       });
-      table('drecTable', ['Year'].concat(POSCOLS), rowsM, [0, 1, 2, 3, 4, 5, 6]);
+      sortableTable('drecTable', ['Year'].concat(POSCOLS), rowsM, [0, 1, 2, 3, 4, 5, 6]);
       var mainPos = ['QB', 'RB', 'WR', 'TE'];
       datasets = mainPos.map(function (p, i) {
         return ds(p, yrs.map(function (y) {
@@ -2747,12 +2788,11 @@ function renderDraftRecords() {
     note = (v === 'poscount' ? 'Draft-day picks only. ' : 'Draft-day prices only. ') +
       (focused ? '' : 'Pick a position to see average vs top-3 vs top-12 cost trend lines. ');
   } else if (v === 'expensive') {
-  } else if (v === 'expensive') {
     var rows2 = SEC.draft.rows.filter(function (r) {
       return (fp === 'All positions' || String(r[DI.Position]) === fp) &&
              (fo === 'All owners' || r[DI.Owner] === fo);
     }).slice().sort(function (a, b) { return Number(b[DI.Price] || 0) - Number(a[DI.Price] || 0); }).slice(0, 25);
-    table('drecTable', ['#', 'Player', 'Pos', 'Year', 'Owner', 'Price', 'Status', 'Points'],
+    sortableTable('drecTable', ['#', 'Player', 'Pos', 'Year', 'Owner', 'Price', 'Status', 'Points'],
       rows2.map(function (r, i) {
         return [i + 1, r[DI.Player], r[DI.Position], r[DI.Year], r[DI.Owner], '$' + r[DI.Price],
           catChip(r[DI.Category]), r[DI.Points] === '' || r[DI.Points] == null ? '' : n1(Number(r[DI.Points]))];
@@ -2767,7 +2807,7 @@ function renderDraftRecords() {
       var price = Math.max(Number(r[DI.Price] || 0), 1);
       return { r: r, ppd: pts / price };
     }).sort(function (a, b) { return b.ppd - a.ppd; }).slice(0, 25);
-    table('drecTable', ['#', 'Player', 'Pos', 'Year', 'Owner', 'Price', 'Points', 'Pts / $', 'EOS pos rk'],
+    sortableTable('drecTable', ['#', 'Player', 'Pos', 'Year', 'Owner', 'Price', 'Points', 'Pts / $', 'EOS pos rk'],
       rows3.map(function (x, i) {
         var r = x.r;
         return [i + 1, r[DI.Player], r[DI.Position], r[DI.Year], r[DI.Owner], '$' + r[DI.Price],
@@ -2800,7 +2840,7 @@ function renderDraftRecords() {
       return ['<b>' + o + '</b>', Math.round(a.sum / a.n * 1000) / 10 + '%',
         Math.round(a.max * 1000) / 10 + '%', a.maxY + ' \u00b7 ' + a.maxP];
     }).sort(function (a, b) { return parseFloat(b[1]) - parseFloat(a[1]); });
-    table('drecTable', ['Owner', 'Avg % of spend on priciest pick', 'Highest single season', 'When'], rows4, [1, 2]);
+    sortableTable('drecTable', ['Owner', 'Avg % of spend on priciest pick', 'Highest single season', 'When'], rows4, [1, 2]);
     note = 'Share of each year\u2019s draft-day spending that went to the owner\u2019s single most expensive drafted player.';
   } else if (v === 'keepshare') {
     var maxY = Math.max.apply(null, yrs);
@@ -2821,7 +2861,7 @@ function renderDraftRecords() {
         a.n3 ? Math.round(a.s3 / a.n3 * 1000) / 10 + '%' : '',
         Math.round(a.max * 1000) / 10 + '% (' + a.maxY + ')'];
     }).sort(function (a, b) { return parseFloat(b[2] || 0) - parseFloat(a[2] || 0); });
-    table('drecTable', ['Owner', 'Career avg', 'Last 3 years', 'Highest season'], rows5, [1, 2, 3]);
+    sortableTable('drecTable', ['Owner', 'Career avg', 'Last 3 years', 'Highest season'], rows5, [1, 2, 3]);
     note = 'Value of keepers as a share of the draft budget before keepers.';
   } else if (v === 'spendmix') {
     var mix = {};
@@ -2845,7 +2885,7 @@ function renderDraftRecords() {
       var m2 = mix[y] || { Drafted: 0, KF: 0, Taxi: 0, Devy: 0, Rookie: 0 };
       return [y, '$' + n1(m2.Drafted), '$' + n1(m2.KF), '$' + n1(m2.Taxi), '$' + n1(m2.Devy), '$' + n1(m2.Rookie), '$' + n1(un[y] || 0)];
     });
-    table('drecTable', ['Year', 'Drafted', 'Keepers + franchise', 'Taxi', 'Devy', 'Rookie', 'Unused'], rows6, [0, 1, 2, 3, 4, 5, 6]);
+    sortableTable('drecTable', ['Year', 'Drafted', 'Keepers + franchise', 'Taxi', 'Devy', 'Rookie', 'Unused'], rows6, [0, 1, 2, 3, 4, 5, 6]);
     note = 'League-wide dollars by acquisition type each year.';
   } else if (v === 'keeperhof') {
     // most-retained players, in any form: keeper, franchise, taxi, devy
@@ -2869,7 +2909,7 @@ function renderDraftRecords() {
     var listH = Object.keys(hof).map(function (k2) {
       var e3 = hof[k2]; e3.totalK = e3.K + e3.F + e3.T + e3.D; return e3;
     }).sort(function (a, b) { return b.totalK - a.totalK || b.tops - a.tops; }).slice(0, 30);
-    table('drecTable', ['#', 'Player', 'Pos', 'Seasons retained', 'Keeper', 'Franchise', 'Taxi', 'Devy', 'Top-12 while kept', 'Owners'],
+    sortableTable('drecTable', ['#', 'Player', 'Pos', 'Seasons retained', 'Keeper', 'Franchise', 'Taxi', 'Devy', 'Top-12 while kept', 'Owners'],
       listH.map(function (e3, i2) {
         return [i2 + 1, '<b>' + e3.name + '</b>', e3.pos, '<b>' + e3.totalK + '</b>',
           e3.K || '', e3.F || '', e3.T || '', e3.D || '', e3.tops || '',
@@ -3922,7 +3962,9 @@ function renderSchedule() {
       var done = g.hs || g.as, hw = done && g.hs > g.as, aw = done && g.as > g.hs;
       // on phones the division moves under the name next to the record
       function who(o) {
-        return '<b>' + o + '</b> <span class="schsub">' + rec(o) + '<span class="schonly"> · ' + schDivS_(schDiv_(y, o)) + '</span></span>';
+        var r = rks.pf[o];
+        var tag = r ? ' <span class="pfown ' + (r <= 4 ? 'pfr-lo' : r >= 9 ? 'pfr-hi' : '') + '" title="Points-for rank">PF ' + ordinal_(r) + '</span>' : '';
+        return '<b>' + o + '</b>' + tag + ' <span class="schsub">' + rec(o) + '<span class="schonly"> · ' + schDivS_(schDiv_(y, o)) + '</span></span>';
       }
       html += '<tr><td>' + who(g.away) + '</td>' +
         '<td class="schhide">' + schDiv_(y, g.away) + '</td><td class="num ' + (aw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.as) : '—') + '</td>' +
@@ -4276,7 +4318,7 @@ function renderDivisions() {
   if (chNotes.length) html += '<div class="note">Champions by division — ' + chNotes.join(' · ') + '</div>';
   if (dhSub === 'cur') html += '<div class="note">The Premier division gets two auto bids and the Second division one, so playoff berths lean structural — the year-by-year table below is the fairer strength test.</div>';
   // year by year
-  html += '<h2>Year by year: best division</h2><div class="twrap"><table id="dhYear" class="fit"></table></div>' +
+  html += '<h2>Year by year: best division</h2><div class="twrap"><table id="dhYear" class="fit dhy"></table></div>' +
     '<div class="twrap" style="margin-top:12px"><table id="dhBW" class="fit"></table></div>' +
     '<div class="note" id="dhBWNote"></div>';
   var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; });
@@ -4327,17 +4369,17 @@ function renderDivisions() {
       return '<th' + (num ? ' class="num"' : '') + (extra || '') + '><span class="sortable" data-sc="' + c + '">' + label + arrow + '</span></th>';
     }
     var h = '<thead><tr>' + sth('Year', 0, ' rowspan="2"', true) + sth('Best', 1, ' rowspan="2"') +
-      DIVS.map(function (d) { return '<th colspan="2" style="text-align:center;border-left:2px solid #d6ded8">' + d + '</th>'; }).join('') +
+      DIVS.map(function (d, i) { return '<th colspan="2" class="dvh dvc' + i + '">' + d + '</th>'; }).join('') +
       '</tr><tr>' +
-      DIVS.map(function (d, i) { return sth('Record', 2 + i * 2, ' style="border-left:2px solid #d6ded8"', true) + sth('Avg PF', 3 + i * 2, '', true); }).join('') +
+      DIVS.map(function (d, i) { return sth('Record', 2 + i * 2, '', true).replace('class="num"', 'class="num dvl dvs' + i + '"') + sth('Avg PF', 3 + i * 2, '', true).replace('class="num"', 'class="num dvs' + i + '"'); }).join('') +
       '</tr></thead><tbody>';
     rows.forEach(function (row) {
       h += '<tr><td class="num"><b>' + row.y + '</b></td><td><b>' + (row.best || '—') + '</b></td>' +
         DIVS.map(function (d) {
-          var b = row.by[d], brd = 'border-left:2px solid #e3e9e4';
-          if (!b) return '<td class="num" style="' + brd + '">—</td><td class="num">—</td>';
+          var b = row.by[d], brd = '';
+          if (!b) return '<td class="num dvl">—</td><td class="num">—</td>';
           var g = b.w + b.l, hot = d === row.best ? ' bestdiv' : '';
-          return '<td class="num' + hot + '" style="' + brd + '">' + b.w + '-' + b.l + (b.champ ? ' 🏆' : '') + '</td>' +
+          return '<td class="num dvl' + hot + '">' + b.w + '-' + b.l + (b.champ ? ' 🏆' : '') + '</td>' +
             '<td class="num' + hot + '">' + (g ? n1(b.pf / g) : '—') + '</td>';
         }).join('') + '</tr>';
     });
@@ -4993,8 +5035,10 @@ function renderCurrent() {
   }
   var pfNow = pfRankList(c);
   var pfPrev = prev ? pfRankList(prev) : null;
-  html += '<h2>Owners by points for</h2><div class="twrap"><table class="fit"><thead><tr>' +
-    '<th class="num">RK</th><th>Prev</th><th>Owner</th><th class="num">Avg PF</th><th>Div</th><th>Rec</th></tr></thead><tbody>';
+  var pfLead = pfNow.length ? c.st[pfNow[0]].pf : 0;
+  html += '<h2>Owners by points for</h2><div class="twrap"><table class="fit stand"><thead><tr>' +
+    '<th class="num">RK</th><th>Prev</th><th>Owner</th><th class="num">Total PF</th><th class="num"><span class="lg">Pts back</span><span class="sm">Back</span></th>' +
+    '<th class="num">Avg PF</th><th class="mhide">Div</th><th>Rec</th></tr></thead><tbody>';
   pfNow.forEach(function (o, i) {
     var b = curRowBits(o, c);
     var mv = '\u2014';
@@ -5003,7 +5047,9 @@ function renderCurrent() {
       if (d2 > 0) mv = '\u2191' + d2; else if (d2 < 0) mv = '\u2193' + (-d2);
     }
     html += '<tr><td class="num">' + (i + 1) + '</td><td>' + mv + '</td><td><b>' + o + '</b></td>' +
-      '<td class="num">' + b.avgPF + '</td><td>' + c.div[o] + '</td><td>(' + b.w + '-' + b.l + ')</td></tr>';
+      '<td class="num">' + c.st[o].pf.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+      '<td class="num">' + (i === 0 ? '\u2014' : (pfLead - c.st[o].pf).toFixed(2)) + '</td>' +
+      '<td class="num">' + b.avgPF + '</td><td class="mhide">' + c.div[o] + '</td><td>(' + b.w + '-' + b.l + ')</td></tr>';
   });
   html += '</tbody></table></div>';
   el('curPF').innerHTML = html;
