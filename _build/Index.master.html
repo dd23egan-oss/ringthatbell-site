@@ -5212,32 +5212,45 @@ function curPaths_(c, rem) {
   var gained = owners.map(function () { return new Uint8Array(total); });
   var inA = owners.map(function () { return new Uint8Array(total); });
   var poss = owners.map(function () { return new Uint8Array(total); });
-  var w = new Int16Array(NO), mask, i, j, gi;
+  var w = new Int16Array(NO), mask, i, j, gi, di;
+  var DV = [{ k: 2, mem: [] }, { k: 1, mem: [] }];
+  divOf.forEach(function (d, i2) { if (d === 'Premier') DV[0].mem.push(i2); else if (d === 'Second') DV[1].mem.push(i2); });
   for (mask = 0; mask < total; mask++) {
     for (i = 0; i < NO; i++) w[i] = bw[i];
     for (gi = 0; gi < n; gi++) { var wi = (mask >> gi) & 1 ? gb[gi] : ga[gi]; w[wi]++; gained[wi][mask]++; }
-    // strict automatic bids (no tie needed)
-    var sureAuto = 0;
-    for (i = 0; i < NO; i++) {
-      if (divOf[i] !== 'Premier' && divOf[i] !== 'Second') continue;
-      var ge = 0;
-      for (j = 0; j < NO; j++) if (j !== i && divOf[j] === divOf[i] && w[j] >= w[i]) ge++;
-      if (divOf[i] === 'Premier' ? ge < 2 : ge < 1) sureAuto |= (1 << i);
+    // Automatic bids, worst case for each team. In a division with k bids (Premier 2, Second 1), teams strictly
+    // above the k-th best record are locked in; the rest of the bids go to the teams tied at that record.
+    // A tie is assumed to go against the team being judged, but SOMEONE in that tie still takes the bid,
+    // which matters: that rival then is not competing for a wildcard.
+    for (di = 0; di < 2; di++) {
+      var mem = DV[di].mem, kk = DV[di].k, vals = [];
+      for (j = 0; j < mem.length; j++) vals.push(w[mem[j]]);
+      vals.sort(function (p1, p2) { return p2 - p1; });
+      var vk = vals.length >= kk ? vals[kk - 1] : -1, forced = 0, bsz = 0;
+      for (j = 0; j < mem.length; j++) { if (w[mem[j]] > vk) forced++; else if (w[mem[j]] === vk) bsz++; }
+      DV[di].vk = vk; DV[di].forced = forced; DV[di].bsz = bsz; DV[di].slots = kk - forced;
     }
     for (i = 0; i < NO; i++) {
-      if (sureAuto & (1 << i)) { inA[i][mask] = 1; poss[i][mask] = 1; continue; }
-      // wildcard for sure: at most one other non-automatic team at or above this record
-      var comp = 0, above = 0, abovePrem = 0, aboveSec = 0, divAbove = 0;
+      var myD = divOf[i] === 'Premier' ? DV[0] : divOf[i] === 'Second' ? DV[1] : null;
+      if (myD && (w[i] > myD.vk || (w[i] === myD.vk && myD.bsz <= myD.slots))) { inA[i][mask] = 1; poss[i][mask] = 1; continue; }
+      var ge = 0, above = 0, abovePrem = 0, aboveSec = 0, divAbove = 0;
       for (j = 0; j < NO; j++) {
         if (j === i) continue;
-        if (w[j] >= w[i] && !(sureAuto & (1 << j))) comp++;
+        if (w[j] >= w[i]) ge++;
         if (w[j] > w[i]) {
           above++;
           if (divOf[j] === 'Premier') abovePrem++; else if (divOf[j] === 'Second') aboveSec++;
           if (divOf[j] === divOf[i]) divAbove++;
         }
       }
-      if (comp <= 1) { inA[i][mask] = 1; poss[i][mask] = 1; continue; }
+      // rivals at or above this record who are certain to hold an automatic bid instead of chasing a wildcard
+      var autoGE = 0;
+      for (di = 0; di < 2; di++) {
+        var D = DV[di];
+        for (j = 0; j < D.mem.length; j++) if (D.mem[j] !== i && w[D.mem[j]] > D.vk && w[D.mem[j]] >= w[i]) autoGE++;
+        if (D.vk >= w[i]) autoGE += D.slots;
+      }
+      if (ge - autoGE <= 1) { inA[i][mask] = 1; poss[i][mask] = 1; continue; }
       // possible if ties break its way: an automatic bid, or a wildcard once the bids are taken by teams above
       var autoPoss = divOf[i] === 'Premier' ? divAbove < 2 : divOf[i] === 'Second' ? divAbove < 1 : false;
       if (autoPoss || above - Math.min(2, abovePrem) - Math.min(1, aboveSec) <= 1) poss[i][mask] = 1;
