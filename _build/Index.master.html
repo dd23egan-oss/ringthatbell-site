@@ -720,6 +720,7 @@
       <span class="cwrap" id="recFS"><label for="selRSet">Games</label><select id="selRSet"></select></span>
     </div>
     <h2 id="recTitle"></h2>
+    <div id="recExtra"></div>
     <div class="twrap"><table id="recTable"></table></div>
     <div class="note" id="recNote"></div>
   </div>
@@ -2231,7 +2232,7 @@ var RECGROUPS = [
   ['matchups', 'Matchups', ['highmatch', 'lowmatch', 'blowout', 'closest']],
   ['streaks', 'Streaks', ['streakwl', 'streak100', 'streak120', 'streakseason', 'postreaks']],
   ['allplay', 'Vs. the whole league', ['allplay', 'allplayyear']],
-  ['post', 'Post-season', ['p_career', 'p_highgame', 'p_lowgame', 'p_bestloss', 'p_luckywin', 'p_highmatch', 'p_lowmatch', 'p_blowout', 'p_closest', 'p_highseason']]
+  ['post', 'Post-season', ['p_career', 'p_highgame', 'p_lowgame', 'p_bestloss', 'p_luckywin', 'p_highmatch', 'p_lowmatch', 'p_blowout', 'p_closest', 'p_highseason', 'p_picks']]
 ];
 // [tab label, full title shown above the table]
 var RECLABELS = {
@@ -2275,7 +2276,8 @@ var RECLABELS = {
   p_lowmatch: ['Lowest combined score', 'Lowest-scoring post-season matchups'],
   p_blowout: ['Biggest blowouts', 'Largest post-season margins of victory'],
   p_closest: ['Closest games', 'Smallest post-season margins of victory'],
-  p_highseason: ['Best post-season runs', 'Best scoring runs in a single post-season']
+  p_highseason: ['Best post-season runs', 'Best scoring runs in a single post-season'],
+  p_picks: ['Picking an opponent', 'Picking a playoff opponent: who chose right and who chose wrong']
 };
 var RECSETS = {
   std: [['all', 'All games'], ['regular', 'Regular season'], ['post', 'All post-season'], ['playoffs', 'Playoffs only'], ['consol', 'Consolation ladder only']],
@@ -2342,7 +2344,8 @@ function renderRecords() {
   var usesSet = ['bestseason', 'highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'highseason', 'lowseason', 'paseason', 'lowpaseason', 'diffhi', 'difflo', 'hiweek', 'loweek', 'pcareer'].indexOf(v) > -1;
   var isPos = v === 'posbest' || v === 'posworst';
   el('recFP').style.display = isPos ? 'flex' : 'none';
-  var usesYear = usesSet || ['allplay', 'allplayyear', 'lossseason', 'bestrec', 'worstrec', 'posbest', 'posworst'].indexOf(v) > -1;
+  var usesYear = usesSet || ['allplay', 'allplayyear', 'lossseason', 'bestrec', 'worstrec', 'posbest', 'posworst', 'picks'].indexOf(v) > -1;
+  el('recExtra').innerHTML = '';
   var usesOwner = usesYear && ['allplay', 'hiweek', 'loweek', 'pcareer'].indexOf(v) === -1;
   el('recFilters').style.display = usesYear ? 'flex' : 'none';
   el('recFY').style.display = usesYear ? 'flex' : 'none';
@@ -2389,6 +2392,61 @@ function renderRecords() {
       isDf ? 'Total diff' : isPA ? 'Total PA' : 'Total PF', isDf ? 'Diff / game' : isPA ? 'Avg PA / game' : 'Avg PF / game'], seaRows, [0, 2, 3, 5, 6]);
     el('recNote').textContent = (v === 'bestseason' ? 'Ranked by total points.' : 'Ranked by the per-game figure so seasons of different lengths compare fairly.') +
       (isPost ? ' One row per owner per post-season.' : ' Use the Games filter to switch between all games, regular season only, or the post-season.') + SETNOTE;
+    return;
+  }
+  if (v === 'picks') {
+    // The top seed playing in a round picks its opponent: the 3 seed in round 1, the 1 seed in the semifinals.
+    var sd = {};
+    DATA.seasons.rows.forEach(function (r) { sd[r[S('Year')] + '|' + r[S('Owner')]] = Number(r[S('Seed')]) || 99; });
+    var rounds = {};
+    DATA.games.rows.forEach(function (r) {
+      var lb = String(r[G('WeekLabel')]);
+      if (lb !== 'Playoffs: RD 1' && lb !== 'Semi-Finals') return;
+      var k1 = r[G('Year')] + '|' + lb;
+      (rounds[k1] = rounds[k1] || []).push({ o: r[G('Owner')], pf: Number(r[G('PointsFor')]) || 0, opp: r[G('Opponent')], y: Number(r[G('Year')]), lb: lb });
+    });
+    var picks = [];
+    Object.keys(rounds).forEach(function (k1) {
+      var t = rounds[k1];
+      if (t.length !== 4) return;
+      t.forEach(function (x) { x.seed = sd[x.y + '|' + x.o] || 99; });
+      t.sort(function (a, b) { return a.seed - b.seed; });
+      var pk = t[0], chosen = t.filter(function (x) { return x.o === pk.opp; })[0];
+      if (!chosen) return;
+      var others = t.filter(function (x) { return x !== pk && x !== chosen; });
+      var won = pk.pf > chosen.pf;
+      var beatable = others.filter(function (x) { return pk.pf > x.pf; });
+      picks.push({ y: pk.y, rd: pk.lb === 'Semi-Finals' ? 'Semifinals' : 'Round 1', pk: pk, ch: chosen, ot: others, won: won,
+        verdict: won ? 'right' : beatable.length ? 'wrong' : 'none', beatable: beatable });
+    });
+    picks = picks.filter(function (x) { return (fy === 'All years' || x.y === Number(fy)) && (fo === 'All owners' || x.pk.o === fo); })
+      .sort(function (a, b) { return b.y - a.y || (a.rd < b.rd ? -1 : 1); });
+    function vchip(x) {
+      return x.verdict === 'right' ? '<span class="win"><b>Right</b></span> · won'
+        : x.verdict === 'wrong' ? '<span class="loss"><b>Wrong</b></span> · beats ' + x.beatable.map(function (b2) { return b2.o; }).join(' or ')
+        : '<b>Lost either way</b>';
+    }
+    function oc(x, t) { return t ? t.o + ' (' + t.seed + ') ' + n1(t.pf) + (x.pk.pf > t.pf ? ' <span class="win">✓</span>' : ' <span class="loss">✗</span>') : '—'; }
+    var sum = {};
+    picks.forEach(function (x) {
+      var a0 = sum[x.pk.o] = sum[x.pk.o] || { n: 0, right: 0, wrong: 0, none: 0 };
+      a0.n++; a0[x.verdict]++;
+    });
+    var tot = { n: picks.length, right: 0, wrong: 0, none: 0 };
+    picks.forEach(function (x) { tot[x.verdict]++; });
+    el('recExtra').innerHTML = '<div class="note" style="margin:0 0 8px">Picked right <b>' + tot.right + '</b> of ' + tot.n + ' times, picked wrong <b>' + tot.wrong +
+      '</b>, and <b>' + tot.none + '</b> would have lost to anyone.</div>' +
+      '<div class="twrap" style="margin-bottom:14px"><table id="recPickSum"></table></div>';
+    sortableTable('recPickSum', ['Owner', 'Times picking', 'Right', 'Wrong', 'Lost either way'],
+      Object.keys(sum).map(function (o0) { var a0 = sum[o0]; return ['<b>' + o0 + '</b>', a0.n, a0.right, a0.wrong, a0.none]; }),
+      [1, 2, 3, 4], [], 1, 1);
+    sortableTable('recTable', ['Year', 'Round', 'Picker (seed)', 'Result', 'Score', 'Picked', 'Not picked', 'Also not picked'],
+      picks.map(function (x) {
+        return [x.y, x.rd, '<b>' + x.pk.o + '</b> (' + x.pk.seed + ')', vchip(x), '<b>' + n1(x.pk.pf) + '</b>', oc(x, x.ch), oc(x, x.ot[0]), oc(x, x.ot[1])];
+      }), [0, 4], [3, 5, 6, 7]);
+    el('recNote').textContent = 'The best seed playing in a round chooses its opponent: the 3 seed in round 1 and the 1 seed in the semifinals. ' +
+      'Right = the picker won. Wrong = the picker lost but scored enough that week to beat a team they passed on. ' +
+      '✓ / ✗ next to each opponent shows whether the picker’s score would have beaten them. The number in brackets is the seed.';
     return;
   }
   if (isPos) {
