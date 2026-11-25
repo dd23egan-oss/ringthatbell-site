@@ -248,11 +248,12 @@
     background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; letter-spacing: 0; }
   .sharebtn:hover { border-color: var(--primary); }
   .sml { display: none; }
-  .subpills.grouped { display: block; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 12px 2px; margin-top: 0; }
   .subgrp { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0 8px; }
   .subgrp + .subgrp { border-top: 1px solid var(--line); }
   .subhdr { flex: 0 0 100%; font-size: 10.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--primary); }
-  .subpills { margin-top: calc(-1 * var(--s1)); }
+  .subpills { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; gap: 6px; margin-top: 0; }
+  .subpills:empty { display: none; }
+  .subpills.grouped { display: block; padding: 4px 12px 2px; }
   .subpills .pill { font-size: 12.5px; padding: 5px 11px; background: transparent; }
   .subpills .pill.on { background: var(--primarySoft); color: var(--primary); border-color: var(--primary); font-weight: 700; }
   .howin { font-size: 12px; font-weight: 700; white-space: nowrap; }
