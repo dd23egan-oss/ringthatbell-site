@@ -5395,7 +5395,9 @@ function curPaths_(c, rem) {
   }
   function help(x, k) {     // simplest extra results that make "k or more wins" enough
     var gx = gained[x], inx = inA[x], bad = [], ok = [], m;
-    for (m = 0; m < total; m++) { if (gx[m] < k) continue; if (inx[m]) ok.push(m); else bad.push(m); }
+    // bad = any outcome with k or more wins that still misses; ok = outcomes with exactly k wins that get in,
+    // so every option listed really is reachable with exactly that many wins
+    for (m = 0; m < total; m++) { if (gx[m] < k) continue; if (!inx[m]) bad.push(m); else if (gx[m] === k) ok.push(m); }
     if (!ok.length) return { any: false, sols: [] };
     var atoms = atomsFor(x, k), sols = [];
     atoms.forEach(function (a) {
