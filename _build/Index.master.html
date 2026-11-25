@@ -5281,9 +5281,12 @@ function curPaths_(c, rem) {
       return a.own ? (k === 1 ? 'the win comes against <b>' : 'one of the wins comes against <b>') + owners[l] + '</b> (Wk ' + wk + ')'
         : '<b>' + owners[a.w] + '</b> beats ' + owners[l] + ' (Wk ' + wk + ')';
     }
-    return a.n === R[a.y] ? '<b>' + owners[a.y] + '</b> loses ' + (R[a.y] === 1 ? 'his last game' : R[a.y] === 2 ? 'both of his last two' : 'all ' + R[a.y] + ' he has left')
-      : a.n === 1 ? '<b>' + owners[a.y] + '</b> loses at least once'
-      : '<b>' + owners[a.y] + '</b> loses at least ' + a.n + ' of his last ' + R[a.y];
+    // name the opponents instead of just counting games
+    var opps = [];
+    rem.forEach(function (g, gi3) { if (ga[gi3] === a.y) opps.push(owners[gb[gi3]]); else if (gb[gi3] === a.y) opps.push(owners[ga[gi3]]); });
+    var list = opps.length > 1 ? opps.slice(0, -1).join(', ') + ' and ' + opps[opps.length - 1] : opps[0];
+    if (a.n === R[a.y]) return '<b>' + owners[a.y] + '</b> loses to ' + list;
+    return '<b>' + owners[a.y] + '</b> loses ' + (a.n === 1 ? 'at least once' : 'at least ' + a.n + ' times') + ' (plays ' + list + ')';
   }
   function help(x, k) {     // simplest extra results that make "k or more wins" enough
     var gx = gained[x], inx = inA[x], bad = [], ok = [], m;
