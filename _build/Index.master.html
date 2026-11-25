@@ -1545,7 +1545,7 @@ function stripTags(v) { return String(v == null ? '' : v).replace(/<[^>]*>/g, ''
 // escape sheet free-text before it lands in innerHTML (keeps a stray "<" from eating the row)
 function escHtml_(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 function sortKey(v) {
-  var s = stripTags(v).replace(/[$,%]/g, '').replace(/\u2013/g, '-');
+  var s = stripTags(v).replace(/[$,%]/g, '').replace(/[\u2013\u2212]/g, '-').replace(/^\+(?=[\d.])/, '');
   if (s === '' || s === '-' || s === '\u2014') return null;
   var m = s.match(/^-?(\d+(\.\d+)?|\.\d+)/);
   if (m && m[0].length >= s.length - 2) return parseFloat(m[0]);

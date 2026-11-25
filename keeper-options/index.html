@@ -1215,7 +1215,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1124.1941';
+var RTB_BUILD = '1124.1946';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1650,7 +1650,7 @@ function stripTags(v) { return String(v == null ? '' : v).replace(/<[^>]*>/g, ''
 // escape sheet free-text before it lands in innerHTML (keeps a stray "<" from eating the row)
 function escHtml_(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 function sortKey(v) {
-  var s = stripTags(v).replace(/[$,%]/g, '').replace(/\u2013/g, '-');
+  var s = stripTags(v).replace(/[$,%]/g, '').replace(/[\u2013\u2212]/g, '-').replace(/^\+(?=[\d.])/, '');
   if (s === '' || s === '-' || s === '\u2014') return null;
   var m = s.match(/^-?(\d+(\.\d+)?|\.\d+)/);
   if (m && m[0].length >= s.length - 2) return parseFloat(m[0]);
