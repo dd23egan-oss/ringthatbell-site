@@ -261,6 +261,9 @@
   .twtab td.better { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07) !important; }
   td.bestdiv, span.bestdiv { color: var(--primary); font-weight: 800; background: rgba(21,122,56,.07); }
   span.bestdiv { display: inline-block; }
+  .sharebtn { float: right; margin: 2px 0 0 10px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--primary);
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; letter-spacing: 0; }
+  .sharebtn:hover { border-color: var(--primary); }
   .subpills { margin-top: calc(-1 * var(--s1)); }
   .subpills .pill { font-size: 12.5px; padding: 5px 11px; background: transparent; }
   .subpills .pill.on { background: var(--primarySoft); color: var(--primary); border-color: var(--primary); font-weight: 700; }
@@ -730,7 +733,7 @@
       <span class="cwrap" id="recFY"><label for="selRYear">Year</label><select id="selRYear"></select></span>
       <span class="cwrap" id="recFO"><label for="selROwner">Owner</label><select id="selROwner"></select></span>
       <span class="cwrap" id="recFP" style="display:none"><label for="selRPos">Position</label><select id="selRPos">
-        <option>QB</option><option>RB</option><option>WR</option><option value="RB+WR">RB + WR</option><option>TE</option><option>D/ST</option><option>K</option></select></span>
+        <option>QB</option><option>RB</option><option>WR</option><option value="RB+WR">RB + WR</option><option value="RB+WR+TE">RB + WR + TE</option><option>TE</option><option>D/ST</option><option>K</option></select></span>
       <span class="cwrap" id="recFS"><label for="selRSet">Games</label><select id="selRSet"></select></span>
     </div>
     <h2 id="recTitle"></h2>
@@ -1166,7 +1169,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1124.1857';
+var RTB_BUILD = '1124.1909';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -1459,6 +1462,24 @@ function buildNav() {
   document.addEventListener('click', function () { closeMenus(); });
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeMenus(); });
 }
+// "Share" on every page: the address bar always carries the current tab and filters
+function shareBtn_(page) {
+  var h = document.querySelector('#v-' + page + ' > h1');
+  if (!h || h.querySelector('.sharebtn')) return;
+  var b = document.createElement('button');
+  b.type = 'button'; b.className = 'sharebtn'; b.innerHTML = '\uD83D\uDD17 Share';
+  b.title = 'Copy a link to exactly what you are looking at';
+  b.onclick = function () {
+    var url = location.href;
+    function done(t) { b.innerHTML = t; setTimeout(function () { b.innerHTML = '\uD83D\uDD17 Share'; }, 1600); }
+    if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      navigator.share({ title: document.title, url: url }).catch(function () { });
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () { done('\u2713 Link copied'); }, function () { done('Copy the address bar'); });
+    } else { done('Copy the address bar'); }
+  };
+  h.appendChild(b);
+}
 function closeMenus() {
   document.querySelectorAll('.navgroup.open').forEach(function (w) { w.classList.remove('open'); });
   var m = document.getElementById('navMobile');
@@ -1494,7 +1515,11 @@ function show(page) {
     var owns = !!w.querySelector('button[data-page="' + page + '"]');
     w.querySelector('.navtop').classList.toggle('active', owns);
   });
-  if (page === 'records') ensureAggs();
+  if (page === 'records') { ensureAggs(); if (DATA) renderRecords(); }
+  if (page === 'seasons' && DATA) renderSeason();
+  if (page === 'h2h' && DATA) renderH2H();
+  if (page === 'draft' && SEC) showDraftSub(curDsub);
+  shareBtn_(page);
   if (page === 'divisions') renderDivisions();
   if (page === 'schedule') renderSchedule();
   if (page === 'blog') renderBlog();
@@ -2005,8 +2030,14 @@ function initSeTabs() {
     return '<button class="pill" data-sub="' + t[0] + '">' + t[1] + '</button>';
   }).join('');
   el('sePills').querySelectorAll('button').forEach(function (b) {
-    b.onclick = function () { seSub = b.dataset.sub; showSeSub(); };
+    b.onclick = function () { seSub = b.dataset.sub; showSeSub(); renderSeason(); };
   });
+  if (CURPAGE === 'seasons') {
+    setSelIf_('selYear', routeGetQS('year'));
+    var tq = routeGetQS('tab');
+    if (tq && SETABS.some(function (t) { return t[0] === tq; })) seSub = tq;
+    if (routeGetQS('view') === 'bracket') sePo = 'bracket';
+  }
   showSeSub();
 }
 function showSeSub() {
@@ -2108,6 +2139,8 @@ function renderSeason() {
     b.onclick = function () { sePo = b.dataset.po; renderSeason(); };
   });
   el('sePlayoffs').innerHTML = sePo === 'seed' ? seasonSeedingHtml_(y) : seasonBracketHtml_(y);
+  if (CURPAGE === 'seasons') routeSetQS({ year: el('selYear').selectedIndex === 0 ? '' : String(y),
+    tab: seSub === 'div' ? '' : seSub, view: seSub === 'playoffs' && sePo === 'bracket' ? 'bracket' : '' });
 }
 // "Consulation" is how the sheet spells it; show it properly on the site
 function wkLbl_(v) { return String(v == null ? '' : v).replace(/Consulation/g, 'Consolation'); }
@@ -2234,7 +2267,9 @@ function fillOwnerSelects() {
   el('selA').onchange = renderH2H; el('selB').onchange = renderH2H;
 }
 function renderH2H() {
+  if (!renderH2H._qs) { renderH2H._qs = 1; if (CURPAGE === 'h2h') { setSelIf_('selA', routeGetQS('a')); setSelIf_('selB', routeGetQS('b')); } }
   var A = el('selA').value, B = el('selB').value;
+  if (CURPAGE === 'h2h') routeSetQS({ a: A, b: B });
   if (A === B) { el('h2hCards').innerHTML = card('Pick two different owners', '\u2014', ''); el('h2hTable').innerHTML = ''; return; }
   var g = DATA.games.rows.filter(function (r) { return r[G('Owner')] === A && r[G('Opponent')] === B; })
     .sort(function (a, b) { return b[G('SerialWeek')] - a[G('SerialWeek')]; });
@@ -2380,6 +2415,7 @@ function initRecTabs(deep) {
     pills.querySelectorAll('button').forEach(function (b) {
       b.onclick = function () {
         recGroup = b.dataset.rg; el('selRec').value = ''; buildRecSel(null);
+        el('selRYear').selectedIndex = 0; el('selROwner').selectedIndex = 0;   // every tab opens on all years, all owners
         // season records default to the regular season, like the old record book
         if (recGroup === 'seasons' && el('selRSet').value === 'all') el('selRSet').value = 'regular';
         ensureAggs(); renderRecords();
@@ -2394,17 +2430,21 @@ function renderRecords() {
   if (!renderRecords._qs) {
     renderRecords._qs = 1;
     initRecTabs(routeGetQS('rec') || 'career');
+    if (CURPAGE === 'records') {
+      setSelIf_('selRYear', routeGetQS('year')); setSelIf_('selROwner', routeGetQS('owner'));
+      setSelIf_('selRSet', routeGetQS('games')); setSelIf_('selRPos', routeGetQS('pos'));
+    }
   } else {
     initRecTabs(null);
   }
   el('selRec').onchange = function () { ensureAggs(); renderRecords(); };
   var v = el('selRec').value, note = '';
-  if (CURPAGE === 'records') routeSetQS({ rec: v === 'career' ? '' : v });
+  var vFull = v;
   el('recTitle').textContent = RECLABELS[v] ? RECLABELS[v][1] : '';
   var isPost = v.indexOf('p_') === 0;
   if (isPost) v = v.slice(2);
   if (isPost && v === 'career') v = 'pcareer';
-  var usesSet = ['highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'highseason', 'lowseason', 'paseason', 'lowpaseason', 'diffhi', 'difflo', 'hiweek', 'loweek', 'pcareer'].indexOf(v) > -1;
+  var usesSet = ['bestseason', 'highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'highseason', 'lowseason', 'paseason', 'lowpaseason', 'diffhi', 'difflo', 'hiweek', 'loweek', 'pcareer'].indexOf(v) > -1;
   var isPos = v === 'posbest' || v === 'posworst';
   el('recFP').style.display = isPos ? 'flex' : 'none';
   var usesYear = usesSet || ['allplay', 'allplayyear', 'lossseason', 'bestrec', 'worstrec', 'posbest', 'posworst'].indexOf(v) > -1;
@@ -2418,15 +2458,18 @@ function renderRecords() {
   function setMatch(r) {
     if (fs === 'regular') return r[G('Set')] === 'Regular Season';
     if (fs === 'post') return r[G('Set')] === 'Post-Season';
-    // playoffs = title bracket, 3rd place game and the winner's consolation series
-    if (fs === 'playoffs') return r[G('PlayoffGame')] === true || /^Winner/.test(String(r[G('WeekLabel')]));
+    // playoffs = title bracket and 3rd place game (the winner's consolation teams are already out)
+    if (fs === 'playoffs') return r[G('PlayoffGame')] === true;
     if (fs === 'consol') return r[G('ConsolationGame')] === true;
     return true;
   }
-  var SETNOTE = ' Playoffs = the title bracket, 3rd place game and winner\u2019s consolation; the consolation ladder is seeds 7\u201312.';
+  var SETNOTE = ' Playoffs = the title bracket and 3rd place game. The consolation ladder is seeds 7\u201312. The winner\u2019s consolation (round-1 losers) only counts under All post-season.';
   function yearMatch(r) { return fy === 'All years' || Number(r[G('Year')]) === Number(fy); }
+  if (CURPAGE === 'records') routeSetQS({ rec: vFull === 'career' ? '' : vFull,
+    year: usesYear && fy !== 'All years' ? fy : '', owner: usesOwner ? fo : '',
+    games: usesSet && !(isPost && fs === 'post') ? fs : '', pos: isPos ? el('selRPos').value : '' });
 
-  if (v === 'highseason' || v === 'lowseason' || v === 'paseason' || v === 'lowpaseason' || v === 'diffhi' || v === 'difflo') {
+  if (v === 'bestseason' || v === 'highseason' || v === 'lowseason' || v === 'paseason' || v === 'lowpaseason' || v === 'diffhi' || v === 'difflo') {
     var agS = {};
     DATA.games.rows.forEach(function (r) {
       if (!setMatch(r) || !yearMatch(r)) return;
@@ -2443,12 +2486,13 @@ function renderRecords() {
     function sv(a2) { return (isDf ? a2.pf - a2.pa : isPA ? a2.pa : a2.pf) / a2.g; }
     var desc = v === 'highseason' || v === 'paseason' || v === 'diffhi';
     seaL.sort(function (a2, b2) { return desc ? sv(b2) - sv(a2) : sv(a2) - sv(b2); });
+    if (v === 'bestseason') seaL.sort(function (a2, b2) { return b2.pf - a2.pf; });   // ranked on the total
     var seaRows = seaL.slice(0, 25).map(function (a2, i3) {
       return [i3 + 1, '<b>' + a2.o + '</b>', a2.y, a2.g, a2.w + '-' + a2.l, n1(sv(a2) * a2.g), n1(sv(a2))];
     });
     sortableTable('recTable', ['#', 'Owner', 'Year', 'Games', 'Record',
       isDf ? 'Total diff' : isPA ? 'Total PA' : 'Total PF', isDf ? 'Diff / game' : isPA ? 'Avg PA / game' : 'Avg PF / game'], seaRows, [0, 2, 3, 5, 6]);
-    el('recNote').textContent = 'Ranked by the per-game figure so seasons of different lengths compare fairly.' +
+    el('recNote').textContent = (v === 'bestseason' ? 'Ranked by total points.' : 'Ranked by the per-game figure so seasons of different lengths compare fairly.') +
       (isPost ? ' One row per owner per post-season.' : ' Use the Games filter to switch between all games, regular season only, or the post-season.') + SETNOTE;
     return;
   }
@@ -2462,7 +2506,7 @@ function renderRecords() {
     var fpos = el('selRPos').value, wkN = {}, tot = {};
     (POSSC.weeks || []).forEach(function (r) { wkN[r[0] + '|' + r[1]] = r[2]; });
     (POSSC.pts || []).forEach(function (r) {
-      if (fpos === 'RB+WR' ? (r[2] !== 'RB' && r[2] !== 'WR') : r[2] !== fpos) return;
+      if (fpos.indexOf('+') > -1 ? fpos.split('+').indexOf(r[2]) === -1 : r[2] !== fpos) return;
       tot[r[0] + '|' + r[1]] = (tot[r[0] + '|' + r[1]] || 0) + r[3];
     });
     var cy = 0; DATA.games.rows.forEach(function (r) { cy = Math.max(cy, Number(r[G('Year')])); });
@@ -2480,6 +2524,12 @@ function renderRecords() {
     el('recNote').textContent = 'Points per week from every starter at the position, all games that season (minimum 8 weeks). Average across the seasons shown: ' +
       lgAvg.toFixed(2) + ' per week. * = season in progress.';
     return;
+  }
+  if (v === 'bestrec' || v === 'worstrec' || v === 'lossseason') {
+    // these come from finished-season standings: a year with none yet (the current one) falls back to all years
+    if (fy !== 'All years' && !DATA.seasons.rows.some(function (r) { return Number(r[S('Year')]) === Number(fy); })) {
+      el('selRYear').selectedIndex = 0; fy = 'All years';
+    }
   }
   if (v === 'bestrec' || v === 'worstrec') {
     var br = DATA.seasons.rows.filter(function (r) {
@@ -2854,7 +2904,19 @@ function buildDraftPills() {
   });
 }
 function showDraftSub(k) {
+  if (!showDraftSub._qs) {
+    showDraftSub._qs = 1;
+    if (CURPAGE === 'draft') {
+      var tq = routeGetQS('tab'), rq = routeGetQS('rec');
+      if (tq && DSUBS.some(function (s2) { return s2[0] === tq; })) k = tq;
+      if (rq && setSelIf_('selDRec', rq)) {
+        el('drecPills').querySelectorAll('.pill').forEach(function (x, i2) { x.classList.toggle('on', el('selDRec').selectedIndex === i2); });
+        try { renderDraftRecords(); } catch (eDR) { }
+      }
+    }
+  }
   curDsub = k;
+  if (CURPAGE === 'draft') routeSetQS({ tab: k === 'board' ? '' : k, rec: k === 'records' ? el('selDRec').value : '' });
   DSUBS.forEach(function (s) { el('dsub-' + s[0]).classList.toggle('on', s[0] === k); });
   el('draftPills').querySelectorAll('button').forEach(function (b) {
     b.classList.toggle('on', b.dataset.sub === k);
@@ -2920,6 +2982,7 @@ function fillDraftSelects() {
       el('selDRec').value = op.value;
       dp.querySelectorAll('.pill').forEach(function (x) { x.classList.toggle('on', x === b); });
       renderDraftRecords();
+      if (CURPAGE === 'draft') routeSetQS({ tab: 'records', rec: op.value });
     };
     dp.appendChild(b);
   });
