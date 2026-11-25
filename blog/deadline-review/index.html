@@ -332,14 +332,23 @@
   table.sch2 .c2first { border-left: 3px solid #1f2d25; }
   table.sch2 th.c2h { border-left: 3px solid #1f2d25; }
   table.sch2 td:first-child, table.sch2 th:first-child { width: 1%; white-space: nowrap; }
-  table.sch2 .c2sc { font-size: .9em; color: var(--muted); white-space: nowrap; }
+  table.sch2 .c2sc { font-weight: 600; color: var(--text); white-space: nowrap; }
+  .c2wl { display: inline-block; min-width: 22px; text-align: center; padding: 2px 5px; border-radius: 6px; font-weight: 800; font-size: 12.5px; color: #fff; }
+  .c2wl.w { background: #157a38; } .c2wl.l { background: #b3261e; }
+  table.sch2 td.c2pf { font-size: .88em; font-weight: 600; }
+  table.sch2 td.c2pf:not(.pfr-hi):not(.pfr-lo) { color: var(--muted); }
   tr.c2h2h td { background: #fff6d6 !important; }
   .c2tag { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #8a6a00; }
   .schcard.c2tb { flex: 1 1 100%; grid-column: 1 / -1; border-left: 4px solid #c9a227; }
   .c2tbt { font-size: 13.5px; margin-top: 3px; line-height: 1.45; }
   .schcard.c2a { border-top: 4px solid #157a38; } .schcard.c2b { border-top: 4px solid #1d5fa8; }
   @media (max-width: 700px) {
-    table.sch2 .schrec, table.sch2 .c2sc { display: block; font-size: 10.5px; }
+    table.sch2 .schrec { display: block; font-size: 10.5px; }
+    table.sch2 .c2sc { font-size: 11px; }
+    table.sch2 td:nth-child(3), table.sch2 td:nth-child(6) { white-space: nowrap !important; }
+    table.sch2 td.c2pf { font-size: 10.5px; }
+    table.sch2 th, table.sch2 td { padding-left: 3px !important; padding-right: 3px !important; }
+    .c2wl { min-width: 18px; padding: 1px 4px; font-size: 11.5px; }
     table.sch2 th, table.sch2 td { padding-left: 4px !important; padding-right: 4px !important; }
     table.sch2 th.c2h { font-size: 11.5px; }
     table.sch2 .c2first { border-left-width: 2px; }
@@ -550,6 +559,7 @@
     #recTable[data-v="p_career"] th:nth-child(7), #recTable[data-v="p_career"] td:nth-child(7) { display: none; }
     #trophyTable { font-size: 10px; } #trophyTable td, #trophyTable th { padding-left: 2px; padding-right: 2px; letter-spacing: -.1px; }
     #opDivs { font-size: 10px; } #trophyTable { font-size: 9.5px !important; }
+    table.sch2 { font-size: 11px !important; } table.sch2 .c2sc { font-size: 10.5px; } table.sch2 th, table.sch2 td { padding-left: 2px !important; padding-right: 2px !important; }
     table.dhy { font-size: 9.5px; } table.dhy th, table.dhy td { padding: 4px 1px !important; }
   }
   .cannot { color: #b3261e; font-weight: 600; }
@@ -1240,7 +1250,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1125.0725';
+var RTB_BUILD = '1125.0726';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -4656,13 +4666,14 @@ function renderSchedule() {
     });
     // three plain cells per owner: who they play, how good that team's scoring is, and what happened
     function side(o, g, cls) {
-      if (!g) return '<td class="' + cls + ' c2first">\u2014</td><td class="num ' + cls + '">\u2014</td><td class="' + cls + '">\u2014</td>';
+      if (!g) return '<td class="' + cls + ' c2first">\u2014</td><td class="' + cls + '">\u2014</td><td class="num ' + cls + '">\u2014</td>';
       var opp = g.home === o ? g.away : g.home, my = g.home === o ? g.hs : g.as, their = g.home === o ? g.as : g.hs;
       var done = !!(g.hs || g.as), won = done && my > their, r = rks.pf[opp];
+      // emphasis runs W/L first, then the score, then the opponent's points-for rank
       return '<td class="' + cls + ' c2first"><b>' + opp + '</b> <span class="schrec">' + rec(opp) + '</span></td>' +
-        '<td class="num ' + cls + ' ' + pfrCls(r) + '"><b>' + (r ? ordinal_(r) : '\u2014') + '</b></td>' +
-        '<td class="' + cls + '">' + (done ? '<b class="' + (won ? 'sw' : 'sl') + '">' + (won ? 'W' : 'L') + '</b> <span class="c2sc"><span class="lgl">' + n1(my) + '\u2013' + n1(their) + '</span><span class="sml">' + Math.round(my) + '\u2013' + Math.round(their) + '</span></span>'
-          : '<span class="schsub">\u2014</span>') + '</td>';
+        '<td class="' + cls + '">' + (done ? '<span class="c2wl ' + (won ? 'w' : 'l') + '">' + (won ? 'W' : 'L') + '</span> <span class="c2sc"><span class="lgl">' + n1(my) + '\u2013' + n1(their) + '</span><span class="sml">' + Math.round(my) + '\u2013' + Math.round(their) + '</span></span>'
+          : '<span class="schsub">\u2014</span>') + '</td>' +
+        '<td class="num c2pf ' + cls + ' ' + pfrCls(r) + '">' + (r ? ordinal_(r) : '\u2014') + '</td>';
     }
     function summ(o) {
       var s2 = st[o] || { w: 0, l: 0, pf: 0, g: 0 }, left = [], tot = 0;
@@ -4700,7 +4711,7 @@ function renderSchedule() {
       return '<b>' + lead + '</b> holds the head-to-head tiebreaker, ' + hi + '-' + lo + ' this season.';
     })();
     el('schCards').innerHTML = summ(fo) + summ(fo2) + '<div class="schcard c2tb"><div class="k">Tiebreaker</div><div class="c2tbt">' + tb + '</div></div>';
-    var sub = '<th class="c2first">' + LS_('Opponent', 'Opp') + '</th><th class="num">' + LS_('Opp PF rank', 'PF rk') + '</th><th>Result</th>';
+    var sub = '<th class="c2first">' + LS_('Opponent', 'Opp') + '</th><th>Result</th><th class="num">' + LS_('Opp PF rank', 'PF rk') + '</th>';
     html = '<div class="twrap"><table class="fit schtab sch2"><thead>' +
       '<tr><th rowspan="2">' + LS_('Week', 'Wk') + '</th><th colspan="3" class="c2h c2ha">' + fo + '\u2019s schedule</th><th colspan="3" class="c2h c2hb">' + fo2 + '\u2019s schedule</th></tr>' +
       '<tr class="c2subh">' + sub.replace(/<th/g, '<th data-s="a"') + sub.replace(/<th/g, '<th data-s="b"') + '</tr></thead><tbody>';
