@@ -270,7 +270,8 @@
   .bm.sacko { border-color: #c98a8a; }
   .bm.bye .bt.w { font-weight: 600; background: none; }
   .bnote { font-size: 12px; margin: -2px 2px 8px; opacity: .85; }
-  @media (max-width: 720px) { .brk { grid-template-columns: 1fr; gap: 4px; } .brk h3 { margin-top: 8px; } .howin { white-space: normal; font-size: 11.5px; } }
+  /* phones keep the three-column bracket and scroll sideways */
+  @media (max-width: 720px) { .brk { grid-template-columns: repeat(3, 215px); gap: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; } .howin { white-space: normal; font-size: 11.5px; } }
   table.dhy { border-collapse: collapse; border: 2px solid #1f2d25; }
   table.dhy th, table.dhy td { border: 1px solid #c3cec6; }
   table.dhy thead th { border-bottom: 2px solid #1f2d25; }
@@ -2201,7 +2202,7 @@ function seasonBracketHtml_(y) {
     col('Round 3', games('Consulation Championship').map(function (g) { return card(g, 'Consolation championship', 'ttl'); }).join('') +
       games('Consulation: RD3').map(function (g) { return card(g, 'Round 3 game'); }).join('') +
       games('Sacko').map(function (g) { return card(g, 'Sacko', 'sacko'); }).join('')) + '</div>' +
-    '<div class="note">Winner in bold; the small number is the seed. The winner\u2019s consolation is the two round-1 losers playing a two-week series for devy draft position.</div>';
+    '<div class="note"><span class="sml">Swipe sideways to follow each round. </span>Winner in bold; the small number is the seed. The winner\u2019s consolation is the two round-1 losers playing a two-week series for devy draft position.</div>';
   return h;
 }
 
