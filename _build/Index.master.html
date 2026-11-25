@@ -5787,7 +5787,9 @@ function renderCurrent() {
             (lv.sols.length > show.length ? '<div class="schsub">plus ' + (lv.sols.length - show.length) + ' longer-shot combination' + (lv.sols.length - show.length === 1 ? '' : 's') + '</div>' : ''));
         });
         if (!A.alive || x.dead) lines = [magicLine(x)];
-        else if (x.o === sixO) lines.push('He holds the points-for 6th spot right now as a fallback.');
+        else if (x.o === sixO) lines.push('<b>6th seed:</b> he holds it right now on points for, so that is his fallback.');
+        else if (x.deficit <= 0) lines.push('<b>6th seed:</b> he has more points for than ' + (sixO || 'the current 6 seed') + ', so the points-for spot is his fallback if the record falls short.');
+        else lines.push('<b>6th seed:</b> the points-for spot is also open to him. He is ' + n1(x.deficit) + ' points behind ' + (sixO || 'the current 6 seed') + '.');
         pHtml += '<div class="pathcard"><div class="pathhead"><b>' + x.o + '</b> <span class="schrec">' + x.rec + ' · ' + c.div[x.o] + ' Div · ' + A.remain + ' left</span></div>' +
           '<ul class="pathlines">' + lines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>';
       });
