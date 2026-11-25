@@ -2282,7 +2282,7 @@ var RECGROUPS = [
   ['weeks', 'Single weeks', ['#One team', 'highgame', 'lowgame', 'bestloss', 'luckywin', '#Whole league', 'hiweek', 'loweek']],
   ['matchups', 'Matchups', ['highmatch', 'lowmatch', 'blowout', 'closest']],
   ['streaks', 'Streaks', ['#Game by game', 'streakwl', 'streak100', 'streak120', '#Season by season', 'streakseason', 'postreaks']],
-  ['allplay', 'Vs. the whole league', ['allplay', 'allplayyear']],
+  ['allplay', 'Vs. the whole league', ['allplay', 'allplayyear', 'aplucky', 'apunlucky']],
   ['post', 'Post-season', ['#Owners', 'p_career', 'p_highseason', 'p_picks', '#Single scores', 'p_highgame', 'p_lowgame', 'p_bestloss', 'p_luckywin', '#Matchups', 'p_highmatch', 'p_lowmatch', 'p_blowout', 'p_closest']]
 ];
 // [tab label, full title shown above the table]
@@ -2318,6 +2318,8 @@ var RECLABELS = {
   postreaks: ['Playoff runs & droughts', 'Consecutive seasons making or missing the playoffs'],
   allplay: ['Standings', 'Record if you played every owner every week (all-play)'],
   allplayyear: ['Best single seasons', 'Best all-play seasons'],
+  aplucky: ['Luckiest seasons', 'Luckiest seasons: most wins above what the scoring earned'],
+  apunlucky: ['Unluckiest seasons', 'Unluckiest seasons: most wins lost to the schedule'],
   p_career: ['Career records', 'Career post-season records'],
   p_highgame: ['Highest scores', 'Highest post-season scores'],
   p_lowgame: ['Lowest scores', 'Lowest post-season scores'],
@@ -2403,7 +2405,7 @@ function renderRecords() {
   var usesSet = ['bestseason', 'highgame', 'blowout', 'closest', 'lowgame', 'highmatch', 'lowmatch', 'thresholds', 'topweeks', 'topseasons', 'bestloss', 'luckywin', 'highseason', 'lowseason', 'paseason', 'lowpaseason', 'diffhi', 'difflo', 'hiweek', 'loweek', 'pcareer'].indexOf(v) > -1;
   var isPos = v === 'posbest' || v === 'posworst';
   el('recFP').style.display = isPos ? 'flex' : 'none';
-  var usesYear = usesSet || ['allplay', 'allplayyear', 'lossseason', 'bestrec', 'worstrec', 'posbest', 'posworst', 'picks'].indexOf(v) > -1;
+  var usesYear = usesSet || ['aplucky', 'apunlucky', 'allplay', 'allplayyear', 'lossseason', 'bestrec', 'worstrec', 'posbest', 'posworst', 'picks'].indexOf(v) > -1;
   el('recExtra').innerHTML = '';
   var usesOwner = usesYear && ['allplay', 'hiweek', 'loweek', 'pcareer'].indexOf(v) === -1;
   el('recFilters').style.display = usesYear ? 'flex' : 'none';
@@ -2730,7 +2732,7 @@ function renderRecords() {
       sortableTable('recTable', ['Owner', 'Current', 'Longest ' + sTh + '+ run', 'When', 'Longest sub-' + sTh + ' run', 'When', 'Total ' + sTh + '+ games'], rowsS, [2, 4, 6], [3, 5], 2, 1);
       note = 'Consecutive games scoring ' + sTh + ' or more points; all games included. Current shows the live run (+ above, − below).';
     }
-  } else if (v === 'allplay' || v === 'allplayyear') {
+  } else if (v === 'allplay' || v === 'allplayyear' || v === 'aplucky' || v === 'apunlucky') {
     var apWeeks = {}, apRec = {};
     DATA.games.rows.forEach(function (r) {
       if (r[G('Set')] !== 'Regular Season') return;
@@ -2787,13 +2789,14 @@ function renderRecords() {
         return x.a.w + x.a.l >= 8 &&
           (fy === 'All years' || x.y === Number(fy)) &&
           (fo === 'All owners' || x.o === fo);
-      }).sort(function (x, yv) { return yv.pctv - x.pctv; });
+      }).sort(function (x, yv) { return v === 'aplucky' ? yv.luck - x.luck : v === 'apunlucky' ? x.luck - yv.luck : yv.pctv - x.pctv; });
       sortableTable('recTable', ['#', 'Owner', 'Year', 'All-play W-L', 'All-play %', 'Actual', 'Luck'],
         listY.slice(0, 20).map(function (x, i2) {
           return [i2 + 1, '<b>' + x.o + '</b>', x.y, apfmt(x.a.apw) + '-' + apfmt(x.a.apl),
             x.pctv.toFixed(3).replace(/^0/, ''), x.a.w + '-' + x.a.l, luckHtml(x.luck)];
         }), [0, 2, 4, 6], [0]);
-      note = 'The most dominant single seasons by all-play record (top 20, minimum 8 games). Regular season only.';
+      note = v === 'allplayyear' ? 'The most dominant single seasons by all-play record (top 20, minimum 8 games). Regular season only.'
+        : 'Luck = actual wins minus the wins the all-play record says the team deserved. ' + (v === 'aplucky' ? 'These teams won more than their scoring earned, thanks to a friendly schedule.' : 'These teams scored well enough to win more and the schedule took it away.') + ' Top 20, minimum 8 games, regular season only.';
     }
   } else if (v === 'postreaks') {
     var byOw = {};
