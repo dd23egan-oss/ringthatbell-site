@@ -318,6 +318,8 @@
   table.sch2 .c2sc { font-size: .9em; color: var(--muted); white-space: nowrap; }
   tr.c2h2h td { background: #fff6d6 !important; }
   .c2tag { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #8a6a00; }
+  .schcard.c2tb { flex: 1 1 100%; grid-column: 1 / -1; border-left: 4px solid #c9a227; }
+  .c2tbt { font-size: 13.5px; margin-top: 3px; line-height: 1.45; }
   .schcard.c2a { border-top: 4px solid #157a38; } .schcard.c2b { border-top: 4px solid #1d5fa8; }
   @media (max-width: 700px) {
     table.sch2 .schrec, table.sch2 .c2sc { display: block; font-size: 10.5px; }
@@ -4570,7 +4572,29 @@ function renderSchedule() {
         '<div class="s">' + (left.length ? '<b>' + left.length + ' left</b> \u00b7 opponents average PF rank <b>' + (tot / left.length).toFixed(1) + '</b>' : 'Regular season complete') + '</div></div>';
     }
     el('schCards').style.display = 'flex';
-    el('schCards').innerHTML = summ(fo) + summ(fo2);
+    // who holds the tiebreaker between these two: head to head, or points for when the series is split
+    var tb = (function () {
+      var w1 = 0, w2 = 0, next = '';
+      order.forEach(function (sw) {
+        var g = mine[sw][fo];
+        if (!g || g.set === 'Post-Season' || (g.home !== fo2 && g.away !== fo2)) return;
+        if (!(g.hs || g.as)) { if (!next) next = g.label; return; }
+        var my = g.home === fo ? g.hs : g.as, th = g.home === fo ? g.as : g.hs;
+        if (my > th) w1++; else if (th > my) w2++;
+      });
+      var p1 = (st[fo] || {}).pf || 0, p2 = (st[fo2] || {}).pf || 0;
+      var pfLead = p1 === p2 ? '' : (p1 > p2 ? fo : fo2);
+      var pfTxt = pfLead ? '<b>' + pfLead + '</b> leads on points for, ' + n1(Math.max(p1, p2)) + ' to ' + n1(Math.min(p1, p2)) : 'they are level on points for';
+      var lead = w1 > w2 ? fo : fo2, trail = w1 > w2 ? fo2 : fo, hi = Math.max(w1, w2), lo = Math.min(w1, w2);
+      if (!w1 && !w2) return next ? 'They have not played yet. They meet in <b>' + next + '</b>, and the winner takes the head-to-head tiebreaker.'
+        : 'They do not play each other in the ' + y + ' regular season, so a tie between them goes to points for: ' + pfTxt + '.';
+      if (w1 === w2) return 'They split the series ' + w1 + '-' + w2 + ', so the tiebreaker is points for: ' + pfTxt + '.' + (next ? ' They meet again in ' + next + '.' : '');
+      if (next && hi - lo > 1) return '<b>' + lead + '</b> holds the head-to-head tiebreaker, ' + hi + '-' + lo + ' this season. Their ' + next + ' game cannot change that.';
+      if (next) return '<b>' + lead + '</b> leads the series ' + hi + '-' + lo + '. They meet again in <b>' + next + '</b>: if ' + lead + ' wins, ' + lead +
+        ' holds the tiebreaker; if ' + trail + ' wins, the series is split and it goes to points for (' + pfTxt + ').';
+      return '<b>' + lead + '</b> holds the head-to-head tiebreaker, ' + hi + '-' + lo + ' this season.';
+    })();
+    el('schCards').innerHTML = summ(fo) + summ(fo2) + '<div class="schcard c2tb"><div class="k">Tiebreaker</div><div class="c2tbt">' + tb + '</div></div>';
     var sub = '<th class="c2first">' + LS_('Opponent', 'Opp') + '</th><th class="num">' + LS_('Opp PF rank', 'PF rk') + '</th><th>Result</th>';
     html = '<div class="twrap"><table class="fit schtab sch2"><thead>' +
       '<tr><th rowspan="2">' + LS_('Week', 'Wk') + '</th><th colspan="3" class="c2h c2ha">' + fo + '\u2019s schedule</th><th colspan="3" class="c2h c2hb">' + fo2 + '\u2019s schedule</th></tr>' +
