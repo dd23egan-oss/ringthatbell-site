@@ -265,6 +265,10 @@
     background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; letter-spacing: 0; }
   .sharebtn:hover { border-color: var(--primary); }
   .sml { display: none; }
+  .pathcard { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--primary); border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; box-shadow: var(--shadow); }
+  .pathhead { font-size: 15px; margin-bottom: 4px; }
+  .pathlines { margin: 0; padding-left: 18px; } .pathlines > li { margin: 5px 0; line-height: 1.45; }
+  .pathopt { margin: 4px 0 2px; padding-left: 18px; list-style: circle; } .pathopt li { margin: 3px 0; }
   .subgrp { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0 8px; }
   .subgrp + .subgrp { border-top: 1px solid var(--line); }
   .subhdr { flex: 0 0 100%; font-size: 10.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--primary); }
@@ -1250,7 +1254,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1125.0735';
+var RTB_BUILD = '1125.0850';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -5168,7 +5172,7 @@ function renderDivisions() {
   }).filter(Boolean);
   el('dhBWNote').innerHTML = bwNotes.join(' &nbsp;|&nbsp; ');
 }
-var curSub = 'standings';
+var curSub = 'standings', PATHS_PENDING = false;
 var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['scenarios', 'Playoff scenarios'],
                ['divvdiv', 'Division vs division'],
                ['pf', 'Points for'], ['pa', 'Points against'], ['honors', 'Weekly honors']];
@@ -5188,6 +5192,7 @@ function initCurTabs() {
   el('curPills').querySelectorAll('button').forEach(function (b) {
     b.onclick = function () {
       curSub = b.dataset.sub; showCurSub();
+      if (curSub === 'scenarios' && PATHS_PENDING) { try { renderCurrent(); } catch (ePP) { } }
       if (CURPAGE === 'current') routeSetQS({ tab: curSub === 'standings' ? '' : curSub });
     };
   });
@@ -5293,6 +5298,148 @@ function clinchLegend_(PM, owners) {
 // ESPN-style clinch/elimination scenarios for this week's games: enumerate every
 // outcome of the week (2^games), test the deterministic clinch for each, then
 // compress into the smallest readable conditions.
+// ---------- rest-of-season paths: every way the remaining regular-season games can fall
+// rem = [[ownerA, ownerB, week], ...]. A team is "in" only when its record alone gets it there
+// (ties count against it); "possible" allows ties to break its way.
+var PATHCACHE = {};
+function curPaths_(c, rem) {
+  var owners = c.owners, n = rem.length;
+  if (!n || n > 18) return null;
+  var key = c.played + '|' + rem.map(function (g) { return g.join('>'); }).join(',') + '|' + owners.map(function (o) { return c.st[o].w; }).join(',');
+  if (PATHCACHE[key]) return PATHCACHE[key];
+  var total = 1 << n, NO = owners.length, oi = {};
+  owners.forEach(function (o, i) { oi[o] = i; });
+  var ga = rem.map(function (g) { return oi[g[0]]; }), gb = rem.map(function (g) { return oi[g[1]]; });
+  var bw = owners.map(function (o) { return c.st[o].w; });
+  var R = owners.map(function () { return 0; });
+  ga.forEach(function (a, gi) { R[a]++; R[gb[gi]]++; });
+  var divOf = owners.map(function (o) { return c.div[o]; });
+  var gained = owners.map(function () { return new Uint8Array(total); });
+  var inA = owners.map(function () { return new Uint8Array(total); });
+  var poss = owners.map(function () { return new Uint8Array(total); });
+  var w = new Int16Array(NO), mask, i, j, gi;
+  for (mask = 0; mask < total; mask++) {
+    for (i = 0; i < NO; i++) w[i] = bw[i];
+    for (gi = 0; gi < n; gi++) { var wi = (mask >> gi) & 1 ? gb[gi] : ga[gi]; w[wi]++; gained[wi][mask]++; }
+    // strict automatic bids (no tie needed)
+    var sureAuto = 0;
+    for (i = 0; i < NO; i++) {
+      if (divOf[i] !== 'Premier' && divOf[i] !== 'Second') continue;
+      var ge = 0;
+      for (j = 0; j < NO; j++) if (j !== i && divOf[j] === divOf[i] && w[j] >= w[i]) ge++;
+      if (divOf[i] === 'Premier' ? ge < 2 : ge < 1) sureAuto |= (1 << i);
+    }
+    for (i = 0; i < NO; i++) {
+      if (sureAuto & (1 << i)) { inA[i][mask] = 1; poss[i][mask] = 1; continue; }
+      // wildcard for sure: at most one other non-automatic team at or above this record
+      var comp = 0, above = 0, abovePrem = 0, aboveSec = 0, divAbove = 0;
+      for (j = 0; j < NO; j++) {
+        if (j === i) continue;
+        if (w[j] >= w[i] && !(sureAuto & (1 << j))) comp++;
+        if (w[j] > w[i]) {
+          above++;
+          if (divOf[j] === 'Premier') abovePrem++; else if (divOf[j] === 'Second') aboveSec++;
+          if (divOf[j] === divOf[i]) divAbove++;
+        }
+      }
+      if (comp <= 1) { inA[i][mask] = 1; poss[i][mask] = 1; continue; }
+      // possible if ties break its way: an automatic bid, or a wildcard once the bids are taken by teams above
+      var autoPoss = divOf[i] === 'Premier' ? divAbove < 2 : divOf[i] === 'Second' ? divAbove < 1 : false;
+      if (autoPoss || above - Math.min(2, abovePrem) - Math.min(1, aboveSec) <= 1) poss[i][mask] = 1;
+    }
+  }
+  function atomHolds(a, m) {
+    if (a.t === 'g') return (((m >> a.gi) & 1) ? gb[a.gi] : ga[a.gi]) === a.w;
+    return R[a.y] - gained[a.y][m] >= a.n;          // owner y loses at least n
+  }
+  function atomsFor(x, k) {
+    var out = [];
+    rem.forEach(function (g, gi2) {
+      var a = ga[gi2], b = gb[gi2];
+      if (a === x || b === x) { if (k >= 1) out.push({ t: 'g', gi: gi2, w: x, own: true }); return; }
+      out.push({ t: 'g', gi: gi2, w: a }); out.push({ t: 'g', gi: gi2, w: b });
+    });
+    for (var y = 0; y < NO; y++) { if (y === x) continue; for (var t2 = 1; t2 <= R[y]; t2++) out.push({ t: 'l', y: y, n: t2 }); }
+    return out;
+  }
+  function loserOf(a) { return a.t === 'g' ? (ga[a.gi] === a.w ? gb[a.gi] : ga[a.gi]) : a.y; }
+  function implies(a, sol) {       // does atom a already guarantee solution atom sol?
+    if (a.t === sol.t && (a.t === 'g' ? a.gi === sol.gi && a.w === sol.w : a.y === sol.y && a.n >= sol.n)) return true;
+    return a.t === 'g' && sol.t === 'l' && sol.n === 1 && loserOf(a) === sol.y;
+  }
+  function atomText(a, x, k) {
+    if (a.t === 'g') {
+      var l = loserOf(a), wk = rem[a.gi][2];
+      return a.own ? (k === 1 ? 'the win comes against <b>' : 'one of the wins comes against <b>') + owners[l] + '</b> (Wk ' + wk + ')'
+        : '<b>' + owners[a.w] + '</b> beats ' + owners[l] + ' (Wk ' + wk + ')';
+    }
+    return a.n === R[a.y] ? '<b>' + owners[a.y] + '</b> loses ' + (R[a.y] === 1 ? 'his last game' : R[a.y] === 2 ? 'both of his last two' : 'all ' + R[a.y] + ' he has left')
+      : a.n === 1 ? '<b>' + owners[a.y] + '</b> loses at least once'
+      : '<b>' + owners[a.y] + '</b> loses at least ' + a.n + ' of his last ' + R[a.y];
+  }
+  function help(x, k) {     // simplest extra results that make "k or more wins" enough
+    var gx = gained[x], inx = inA[x], bad = [], ok = [], m;
+    for (m = 0; m < total; m++) { if (gx[m] < k) continue; if (inx[m]) ok.push(m); else bad.push(m); }
+    if (!ok.length) return { any: false, sols: [] };
+    var atoms = atomsFor(x, k), sols = [];
+    atoms.forEach(function (a) {
+      a.bad = 0; a.ok = 0;
+      for (var q = 0; q < bad.length; q++) if (atomHolds(a, bad[q])) a.bad++;
+      for (q = 0; q < ok.length; q++) if (atomHolds(a, ok[q])) { a.ok++; break; }
+    });
+    atoms.filter(function (a) { return a.ok && !a.bad; }).sort(function (a, b) {
+      return (b.own ? 1 : 0) - (a.own ? 1 : 0) || (a.t === 'l' ? a.n : 1) - (b.t === 'l' ? b.n : 1) || (a.t === 'l' ? 0 : 1) - (b.t === 'l' ? 0 : 1);
+    }).forEach(function (a) { if (!sols.some(function (so) { return so.length === 1 && implies(a, so[0]); })) sols.push([a]); });
+    var singles = sols.map(function (so) { return so[0]; });
+    var cand = atoms.filter(function (a) { return a.ok && a.bad && !singles.some(function (so) { return implies(a, so); }); })
+      .sort(function (a, b) { return a.bad - b.bad; }).slice(0, 14);
+    if (cand.length > 1 && sols.length < 4) {
+      var seenBad = new Uint8Array(1 << cand.length), seenOk = new Uint8Array(1 << cand.length), q2, sig, ci;
+      for (q2 = 0; q2 < bad.length; q2++) { sig = 0; for (ci = 0; ci < cand.length; ci++) if (atomHolds(cand[ci], bad[q2])) sig |= (1 << ci); seenBad[sig] = 1; }
+      for (q2 = 0; q2 < ok.length; q2++) { sig = 0; for (ci = 0; ci < cand.length; ci++) if (atomHolds(cand[ci], ok[q2])) sig |= (1 << ci); seenOk[sig] = 1; }
+      var pairs = [];
+      for (var a1 = 0; a1 < cand.length; a1++) for (var a2 = a1 + 1; a2 < cand.length; a2++) {
+        var A = cand[a1], B = cand[a2], bits = (1 << a1) | (1 << a2);
+        if (loserOf(A) === loserOf(B) || (A.t === 'g' && B.t === 'g' && A.gi === B.gi)) continue;
+        var failed = false, sat = false;
+        for (sig = 0; sig < seenBad.length; sig++) {
+          if ((sig & bits) !== bits) continue;
+          if (seenBad[sig]) { failed = true; break; }
+          if (seenOk[sig]) sat = true;
+        }
+        if (!failed && sat) pairs.push([A, B]);
+      }
+      pairs.sort(function (p, q) { return (p[0].bad + p[1].bad) - (q[0].bad + q[1].bad); });
+      pairs.forEach(function (pr) {
+        // drop pairs that are just a stricter version of one already listed
+        if (sols.some(function (so) { return so.length === 2 && so.every(function (sa) { return pr.some(function (pa) { return implies(pa, sa); }); }); })) return;
+        sols.push(pr);
+      });
+    }
+    return { any: true, sols: sols };
+  }
+  function analyze(o) {
+    var x = oi[o], gx = gained[x], inx = inA[x], px = poss[x], r = R[x], k, m;
+    var allIn = [], anyIn = [], anyPoss = [];
+    for (k = 0; k <= r; k++) { allIn.push(true); anyIn.push(false); anyPoss.push(false); }
+    for (m = 0; m < total; m++) {
+      k = gx[m];
+      if (inx[m]) anyIn[k] = true; else allIn[k] = false;
+      if (px[m]) anyPoss[k] = true;
+    }
+    var kMin = null;
+    for (k = r; k >= 0; k--) { if (allIn[k]) kMin = k; else break; }
+    var levels = [];
+    for (k = (kMin == null ? r : kMin - 1); k >= 0; k--) {
+      if (anyIn[k]) { var h = help(x, k); levels.push({ k: k, sols: h.sols }); }
+      else if (anyPoss[k]) levels.push({ k: k, tie: true });
+    }
+    return { o: o, remain: r, kMin: kMin, levels: levels, alive: anyPoss.some(Boolean), text: function (a, k2) { return atomText(a, x, k2); } };
+  }
+  var res = { n: n, analyze: analyze };
+  PATHCACHE[key] = res;
+  return res;
+}
 function curScenarios_(c, PM, games) {
   var owners = c.owners, n = games.length, total = 1 << n;
   var remainAfter = {};
@@ -5695,8 +5842,66 @@ function renderCurrent() {
           n1(x.deficit) + ' points behind ' + (sixO || 'the 6-seed holder')) +
         ', ' + PM.remain[x.o] + ' week' + (PM.remain[x.o] === 1 ? '' : 's') + ' to go.';
     }
+    // rest-of-season paths, from the remaining schedule
+    var remG = [];
+    try {
+      if (CUR && CUR.schedule && CUR.schedule.rows) {
+        var sc5 = ix(CUR.schedule), seenG = {};
+        CUR.schedule.rows.forEach(function (r) {
+          var wk = Number(r[sc5.Week]), h = String(r[sc5.Home] || ''), a = String(r[sc5.Away] || '');
+          var po = sc5.Playoff != null && (r[sc5.Playoff] === true || String(r[sc5.Playoff]).toUpperCase() === 'TRUE');
+          if (!wk || wk <= c.played || po || !c.st[h] || !c.st[a] || seenG[wk + h + a]) return;
+          seenG[wk + h + a] = 1; remG.push([h, a, wk]);
+        });
+        remG.sort(function (p, q) { return p[2] - q[2]; });
+      }
+    } catch (eRem) { remG = []; }
+    var paths = null;
+    PATHS_PENDING = false;
+    try {
+      if (remG.length && remG.every(function (g) { return PM.remain[g[0]] > 0 && PM.remain[g[1]] > 0; })) {
+        // the three-weeks-out version is a heavy calculation, so it waits until this tab is opened
+        if (remG.length > 12 && curSub !== 'scenarios') PATHS_PENDING = true;
+        else paths = curPaths_(c, remG);
+      }
+    } catch (ePath) { paths = null; }
+    if (paths) {
+      var wksLeft = {}; remG.forEach(function (g) { wksLeft[g[2]] = 1; });
+      var nW = Object.keys(wksLeft).length;
+      sHtml += '<h2 style="font-size:15px">🛣️ Paths to the playoffs — ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>';
+      function wins(k) { return k + ' win' + (k === 1 ? '' : 's'); }
+      var pHtml = '';
+      aliveS.forEach(function (x) {
+        var A = paths.analyze(x.o), lines = [];
+        if (A.kMin != null && A.kMin > 0) {
+          lines.push('<b>' + (A.kMin === A.remain ? 'Win out (' + wins(A.kMin) + ')' : 'Win ' + A.kMin + ' of ' + A.remain) + '</b> and he’s in, no help needed.');
+        } else if (A.kMin == null && A.alive) {
+          lines.push('Can’t do it on his own wins alone.');
+        }
+        A.levels.forEach(function (lv) {
+          var lead = lv.k === 0 ? 'With <b>no more wins</b>' : lv.k === A.remain ? 'By <b>winning out</b>' : 'With <b>' + wins(lv.k) + '</b>';
+          if (lv.tie) { lines.push(lead + ', it would come down to tiebreakers (head-to-head, then points for).'); return; }
+          if (!lv.sols.length) { lines.push(lead + ', he needs several other results to fall just right.'); return; }
+          // one-result options first; two-result combos only when there are fewer than two of those
+          var one = lv.sols.filter(function (so) { return so.length === 1; }), two = lv.sols.filter(function (so) { return so.length === 2; });
+          var show = one.slice(0, 4).concat(one.length >= 2 ? [] : two.slice(0, 3 - one.length));
+          function soTxt(so) { return so.map(function (a) { return A.text(a, lv.k); }).join(' <i>and</i> '); }
+          lines.push(lead + ', he also needs ' + (show.length > 1 ? 'any one of these:' : '') +
+            (show.length > 1 ? '<ul class="pathopt">' + show.map(function (so) { return '<li>' + soTxt(so) + '</li>'; }).join('') + '</ul>'
+              : soTxt(show[0]) + '.') +
+            (lv.sols.length > show.length ? '<div class="schsub">plus ' + (lv.sols.length - show.length) + ' longer-shot combination' + (lv.sols.length - show.length === 1 ? '' : 's') + '</div>' : ''));
+        });
+        if (!A.alive || x.dead) lines = [magicLine(x)];
+        else if (x.o === sixO) lines.push('He holds the points-for 6th spot right now as a fallback.');
+        pHtml += '<div class="pathcard"><div class="pathhead"><b>' + x.o + '</b> <span class="schrec">' + x.rec + ' · ' + c.div[x.o] + ' Div · ' + A.remain + ' left</span></div>' +
+          '<ul class="pathlines">' + lines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>';
+      });
+      sHtml += aliveS.length ? pHtml : '<div class="note">Everyone is either in or out — see above and below.</div>';
+      sHtml += '<div class="note">These are the guaranteed paths on record alone, covering every way the last ' + remG.length + ' games can fall. ' +
+        'A tie in the standings is treated as not getting in, since ties go to head-to-head and then points for. The 6th spot goes to the most points for among the teams left out.</div>';
+    }
     if (scen) {
-      sHtml += '<h2 style="font-size:15px">🎯 Clinching scenarios — Week ' + scenWk + '</h2>';
+      if (!paths) sHtml += '<h2 style="font-size:15px">🎯 Clinching scenarios — Week ' + scenWk + '</h2>';
       var anyScen = false, scHtml = '';
       aliveS.forEach(function (x) {
         var opp = null;
@@ -5725,8 +5930,8 @@ function renderCurrent() {
         }
         scHtml += '<li style="margin:7px 0">' + head + ': ' + body + '</li>';
       });
-      sHtml += aliveS.length ? '<ul>' + scHtml + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
-      if (aliveS.length && !anyScen) sHtml += '<div class="note">Nobody can clinch in Week ' + scenWk + ' — the first clinching scenarios will appear the following week.</div>';
+      if (!paths) sHtml += aliveS.length ? '<ul>' + scHtml + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
+      if (!paths && aliveS.length && !anyScen) sHtml += '<div class="note">Nobody can clinch in Week ' + scenWk + ' — the first clinching scenarios will appear the following week.</div>';
       // first-round bye scenarios: anyone (already in or not) who can lock a bye this week
       var byeHtml = '', byeHave = c.owners.filter(function (o) { return PM.byeClinched(o); });
       c.owners.slice().sort(function (a, b) { return c.st[b].w - c.st[a].w || c.st[b].pf - c.st[a].pf; }).forEach(function (o) {
@@ -5760,7 +5965,7 @@ function renderCurrent() {
         ewHtml += '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') ' + btxt + '</li>';
       });
       if (ewHtml) sHtml += '<h2 style="font-size:15px">😬 Elimination watch — Week ' + scenWk + '</h2><ul>' + ewHtml + '</ul>';
-    } else {
+    } else if (!paths) {
       sHtml += '<h2 style="font-size:15px">🎯 What it takes</h2>';
       sHtml += aliveS.length ? '<ul>' + aliveS.map(function (x) {
         return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + '): ' + magicLine(x) + '</li>';
@@ -5768,6 +5973,7 @@ function renderCurrent() {
       if (!TW && !TWLOADING) { try { ensureThisWeek(); } catch (eTW) {} }
       if (!TW) sHtml += '<div class="note">Loading this week’s matchups for exact clinching scenarios…</div>';
     }
+    if (paths && !TW && !TWLOADING) { try { ensureThisWeek(); } catch (eTW2) {} }
     sHtml += '<h2 style="font-size:15px">⚰️ Out of it, within reason</h2>';
     sHtml += deadS.length ? '<ul>' + deadS.map(function (x) {
       return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') — no auto-bid path, and the points-for seed sits ' + n1(x.deficit) + ' away.</li>';
