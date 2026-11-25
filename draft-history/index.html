@@ -324,6 +324,12 @@
   .pfown { font-size: 11px; font-weight: 700; white-space: nowrap; }
   .schsub { color: var(--muted); font-size: 11.5px; font-weight: 400; }
   .schrec { color: var(--muted); font-weight: 400; font-size: .92em; white-space: nowrap; }
+  table.sch2 td { vertical-align: top; }
+  table.sch2 th:first-child, table.sch2 td:first-child { width: 1%; white-space: nowrap; }
+  table.sch2 th:nth-child(2), table.sch2 th:nth-child(3) { width: 49%; }
+  .c2res { font-size: 12px; margin-top: 2px; color: var(--muted); }
+  tr.c2h2h td { background: var(--primarySoft) !important; }
+  .schcard.c2card { flex: 1 1 220px; } .schcard.c2card .s { margin-top: 2px; }
   @media (max-width: 700px) {
     table.schtab { font-size: 12.5px; }
     table.schtab th { font-size: 10.5px; letter-spacing: .2px; padding: 7px 5px; }
@@ -751,6 +757,7 @@
     <div class="controls">
       <label for="selSchYear">Year</label><select id="selSchYear"></select>
       <label for="selSchOwner">Owner</label><select id="selSchOwner"></select>
+      <span class="cwrap" id="schCmpWrap" style="display:none"><label for="selSchOwner2">Compare with</label><select id="selSchOwner2"></select></span>
     </div>
     <div class="schcards" id="schCards" style="display:none"></div>
     <div id="schBody"></div>
@@ -1218,7 +1225,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1124.2025';
+var RTB_BUILD = '1125.0720';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -4569,15 +4576,21 @@ function renderSchedule() {
   if (!ySel.options.length) {
     ySel.innerHTML = yrs.map(function (y) { return '<option>' + y + '</option>'; }).join('');
     oSel.innerHTML = '<option>All owners</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+    el('selSchOwner2').innerHTML = '<option value="">No one</option>' + DATA.ownerNames.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+    el('selSchOwner2').onchange = renderSchedule;
     if (!renderSchedule._qs) {
       renderSchedule._qs = 1;
       setSelIf_('selSchYear', routeGetQS('year'));
       setSelIf_('selSchOwner', routeGetQS('o'));
+      setSelIf_('selSchOwner2', routeGetQS('o2'));
     }
     ySel.onchange = renderSchedule; oSel.onchange = renderSchedule;
   }
   var y = Number(ySel.value), fo = oSel.value;
-  if (CURPAGE === 'schedule') routeSetQS({ year: y === X.years[0] ? '' : String(y), o: fo === 'All owners' ? '' : fo });
+  el('schCmpWrap').style.display = fo === 'All owners' ? 'none' : 'flex';
+  var fo2 = fo === 'All owners' ? '' : el('selSchOwner2').value;
+  if (fo2 === fo) fo2 = '';
+  if (CURPAGE === 'schedule') routeSetQS({ year: y === X.years[0] ? '' : String(y), o: fo === 'All owners' ? '' : fo, o2: fo2 });
   // current year divisions come from the current-season payload
   // (also brings in the upcoming-games schedule)
   if (!CUR && !renderSchedule._kick) { renderSchedule._kick = 1; try { ensureCurrent(); } catch (e) {} }
@@ -4616,6 +4629,52 @@ function renderSchedule() {
         '<td class="schhide">' + divCell(g.home) + '</td><td class="num ' + (hw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.hs) : '—') + '</td></tr>';
     });
     html += '</tbody></table></div>';
+  } else if (fo2) {
+    // two owners side by side: one row per week, each cell is that owner's opponent and result
+    var mine = {}, order = [];
+    glist.forEach(function (g) {
+      [fo, fo2].forEach(function (o) {
+        if (g.home !== o && g.away !== o) return;
+        if (!mine[g.sw]) { mine[g.sw] = { g: g }; order.push(g.sw); }
+        mine[g.sw][o] = g;
+      });
+    });
+    function side(o, g) {
+      if (!g) return { html: '<span class="schsub">\u2014</span>', done: false, opp: '' };
+      var opp = g.home === o ? g.away : g.home, my = g.home === o ? g.hs : g.as, their = g.home === o ? g.as : g.hs;
+      var done = !!(g.hs || g.as), won = done && my > their, r = rks.pf[opp];
+      return { opp: opp, done: done, html: '<div class="c2top"><b>' + opp + '</b> <span class="schrec">' + rec(opp) + '</span>' +
+        (r ? ' <span class="pfown ' + pfrCls(r) + '">PF ' + ordinal_(r) + '</span>' : '') + '</div>' +
+        '<div class="c2res ' + (done ? (won ? 'sw' : 'sl') : '') + '">' + (done ? (won ? 'W ' : 'L ') + n1(my) + '\u2013' + n1(their) : 'Upcoming') + '</div>' };
+    }
+    function summ(o) {
+      var s2 = st[o] || { w: 0, l: 0, pf: 0, g: 0 }, left = [], tot = 0;
+      order.forEach(function (sw) {
+        var g = mine[sw][o];
+        if (!g || g.hs || g.as || g.set === 'Post-Season') return;
+        var opp = g.home === o ? g.away : g.home;
+        if (rks.pf[opp]) { left.push(opp); tot += rks.pf[opp]; }
+      });
+      return '<div class="schcard c2card"><div class="v">' + o + ' <span class="schrec">' + s2.w + '-' + s2.l + '</span></div>' +
+        '<div class="s">' + (rks.pf[o] ? 'PF ' + ordinal_(rks.pf[o]) : '') + (s2.g ? ' \u00b7 ' + n1(s2.pf / s2.g) + ' a week' : '') + '</div>' +
+        '<div class="s">' + (left.length ? '<b>' + left.length + ' left</b> \u00b7 opponents average PF rank <b>' + (tot / left.length).toFixed(1) + '</b>' : 'Regular season complete') + '</div></div>';
+    }
+    el('schCards').style.display = 'flex';
+    el('schCards').innerHTML = summ(fo) + summ(fo2);
+    html = '<div class="twrap"><table class="fit schtab sch2"><thead><tr><th>' + LS_('Week', 'Wk') + '</th><th>' + fo + ' plays</th><th>' + fo2 + ' plays</th></tr></thead><tbody>';
+    order.forEach(function (sw) {
+      var m = mine[sw], g0 = m.g, a = side(fo, m[fo]), b = side(fo2, m[fo2]);
+      var h2h = a.opp === fo2;
+      var wkn = (/(\d+)/.exec(g0.label) || [])[1] || g0.label;
+      html += '<tr' + (h2h ? ' class="c2h2h"' : '') + '><td>' + LS_(g0.label, wkn) +
+        (g0.set === 'Post-Season' ? '<div class="schsub">' + (g0.po ? 'playoffs' : 'post') + '</div>' : '') + '</td>' +
+        (h2h ? '<td colspan="2"><div class="c2top"><b>' + fo + ' vs ' + fo2 + '</b></div><div class="c2res">' +
+            (a.done ? (function () { var g = m[fo], my = g.home === fo ? g.hs : g.as, th = g.home === fo ? g.as : g.hs;
+              return '<span class="' + (my > th ? 'sw' : 'sl') + '">' + fo + ' ' + n1(my) + '</span> \u2013 <span class="' + (th > my ? 'sw' : 'sl') + '">' + fo2 + ' ' + n1(th) + '</span>'; })() : 'Upcoming \u00b7 head to head') + '</div></td>'
+          : '<td>' + a.html + '</td><td>' + b.html + '</td>') + '</tr>';
+    });
+    html += '</tbody></table></div><div class="note">Each cell is that week\u2019s opponent with their record and points-for rank. ' +
+      '<span class="pfr-hi">Red</span> = a top-four scoring team, <span class="pfr-lo">green</span> = a bottom-four one. Lower average PF rank of remaining opponents means a tougher road.</div>';
   } else {
     var s = st[fo] || { w: 0, l: 0, pf: 0, pa: 0, g: 0 };
     el('schCards').style.display = 'flex';
