@@ -306,6 +306,7 @@
   .schS, .schonly { display: none; }
   .pfown { font-size: 11px; font-weight: 700; white-space: nowrap; }
   .schsub { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+  .schrec { color: var(--muted); font-weight: 400; font-size: .92em; white-space: nowrap; }
   @media (max-width: 700px) {
     table.schtab { font-size: 12.5px; }
     table.schtab th { font-size: 10.5px; letter-spacing: .2px; padding: 7px 5px; }
@@ -314,6 +315,7 @@
     table.schtab .schL, table.schtab .schhide { display: none; }
     table.schtab .schS { display: inline; }
     table.schtab .schonly { display: inline; }
+    table.schtab .schsub.schonly { display: block; }
     table.schtab .schsub { display: block; font-size: 10.5px; margin-top: 1px; white-space: nowrap; }
     table.schown td.num .sc1 { display: block; }
     table.schown td.num .scsep { display: none; }
@@ -4483,7 +4485,7 @@ function renderSchedule() {
   var html = '';
   if (fo === 'All owners') {
     el('schCards').style.display = 'none';
-    html = '<div class="twrap"><table class="fit schtab"><thead><tr><th>Away</th><th class="schhide">Div</th><th class="num">Score</th><th>Home</th><th class="schhide">Div</th><th class="num">Score</th></tr></thead><tbody>';
+    html = '<div class="twrap"><table class="fit schtab"><thead><tr><th>Away</th><th class="schhide">Division \u00b7 points-for rank</th><th class="num">Score</th><th>Home</th><th class="schhide">Division \u00b7 points-for rank</th><th class="num">Score</th></tr></thead><tbody>';
     var lastSw = null;
     glist.forEach(function (g) {
       if (g.sw !== lastSw) {
@@ -4492,15 +4494,21 @@ function renderSchedule() {
       }
       var done = g.hs || g.as, hw = done && g.hs > g.as, aw = done && g.as > g.hs;
       // on phones the division moves under the name next to the record
-      function who(o) {
+      function pfTag(o) {
         var r = rks.pf[o];
-        var tag = r ? ' <span class="pfown ' + (r <= 4 ? 'pfr-lo' : r >= 9 ? 'pfr-hi' : '') + '" title="Points-for rank">PF ' + ordinal_(r) + '</span>' : '';
-        return '<b>' + o + '</b>' + tag + ' <span class="schsub">' + rec(o) + '<span class="schonly"> · ' + schDivS_(schDiv_(y, o)) + '</span></span>';
+        return r ? '<span class="pfown ' + (r <= 4 ? 'pfr-lo' : r >= 9 ? 'pfr-hi' : '') + '" title="Points-for rank">PF ' + ordinal_(r) + '</span>' : '';
       }
+      // name with the record right beside it; on phones the division and points-for rank sit on a second line
+      function who(o) {
+        var d = schDiv_(y, o), pt = pfTag(o);
+        return '<b>' + o + '</b> <span class="schrec">' + rec(o) + '</span>' +
+          '<span class="schsub schonly">' + (d ? d + ' Div' : '') + (d && pt ? ' \u00b7 ' : '') + pt + '</span>';
+      }
+      function divCell(o) { var d = schDiv_(y, o), pt = pfTag(o); return (d ? d + ' Div' : '') + (d && pt ? ' \u00b7 ' : '') + pt; }
       html += '<tr><td>' + who(g.away) + '</td>' +
-        '<td class="schhide">' + schDiv_(y, g.away) + '</td><td class="num ' + (aw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.as) : '—') + '</td>' +
+        '<td class="schhide">' + divCell(g.away) + '</td><td class="num ' + (aw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.as) : '—') + '</td>' +
         '<td>' + who(g.home) + '</td>' +
-        '<td class="schhide">' + schDiv_(y, g.home) + '</td><td class="num ' + (hw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.hs) : '—') + '</td></tr>';
+        '<td class="schhide">' + divCell(g.home) + '</td><td class="num ' + (hw ? 'sw' : done ? 'sl' : '') + '">' + (done ? n1(g.hs) : '—') + '</td></tr>';
     });
     html += '</tbody></table></div>';
   } else {
