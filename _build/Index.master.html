@@ -4595,7 +4595,7 @@ function renderSchedule() {
       });
       var p1 = (st[fo] || {}).pf || 0, p2 = (st[fo2] || {}).pf || 0;
       var pfLead = p1 === p2 ? '' : (p1 > p2 ? fo : fo2);
-      var pfTxt = pfLead ? '<b>' + pfLead + '</b> leads on points for, ' + n1(Math.max(p1, p2)) + ' to ' + n1(Math.min(p1, p2)) : 'they are level on points for';
+      var pfTxt = pfLead ? '<b>' + pfLead + '</b> leads by ' + n1(Math.abs(p1 - p2)) + ' points' : 'they are level on points';
       var lead = w1 > w2 ? fo : fo2, trail = w1 > w2 ? fo2 : fo, hi = Math.max(w1, w2), lo = Math.min(w1, w2);
       if (!w1 && !w2) return next ? 'They have not played yet. They meet in <b>' + next + '</b>, and the winner takes the head-to-head tiebreaker.'
         : 'They do not play each other in the ' + y + ' regular season, so a tie between them goes to points for: ' + pfTxt + '.';
