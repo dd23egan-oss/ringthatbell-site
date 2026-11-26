@@ -251,6 +251,7 @@
   .pathcard { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--primary); border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; box-shadow: var(--shadow); }
   .pathhead { font-size: 15px; margin-bottom: 4px; }
   .pathlines { margin: 0; padding-left: 18px; } .pathlines > li { margin: 5px 0; line-height: 1.45; }
+  .pathcard.byecard { border-left-color: #1d5fa8; }
   .pfdep { font-size: 11.5px; color: #8a6a00; white-space: nowrap; }
   .pathopt { margin: 4px 0 2px; padding-left: 18px; list-style: circle; } .pathopt li { margin: 3px 0; }
   .subgrp { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0 8px; }
@@ -5220,6 +5221,10 @@ function curPaths_(c, rem) {
   var inA = owners.map(function () { return new Uint8Array(total); });
   var sol = owners.map(function () { return new Uint8Array(total); });
   var poss = owners.map(function () { return new Uint8Array(total); });
+  // same three answers for a first-round bye: the Premier winner, plus the best of the other four teams in on record
+  var byeA = owners.map(function () { return new Uint8Array(total); });
+  var byeSol = owners.map(function () { return new Uint8Array(total); });
+  var byePoss = owners.map(function () { return new Uint8Array(total); });
   var w = new Int16Array(NO), mask, i, j, gi;
   var pf = new Float64Array(NO), hb = new Int16Array(NO * NO), pairG = [];
   for (i = 0; i < NO * NO; i++) pairG.push([]);
@@ -5255,12 +5260,18 @@ function curPaths_(c, rem) {
     var q, len = 0;
     for (q = 0; q < NO; q++) chosen[q] = 0;
     for (q = 0; q < prem.length; q++) buf[q] = prem[q];
-    topOf(buf, prem.length, 2); chosen[buf[0]] = 1; chosen[buf[1]] = 1;
+    topOf(buf, prem.length, 2); chosen[buf[0]] = 1; chosen[buf[1]] = 1; premTop = buf[0];
     for (q = 0; q < sec.length; q++) buf[q] = sec[q];
     topOf(buf, sec.length, 1); chosen[buf[0]] = 1;
     for (q = 0; q < NO; q++) if (!chosen[q]) rest[len++] = q;
     topOf(rest, len, 2); chosen[rest[0]] = 1; chosen[rest[1]] = 1;
+    // byes: Premier winner, then the top team among the other four (ranked as their own group, like the standings)
+    for (q = 0; q < NO; q++) byeT[q] = 0;
+    byeT[premTop] = 1; len = 0;
+    for (q = 0; q < NO; q++) if (chosen[q] && q !== premTop) rest[len++] = q;
+    topOf(rest, len, 1); byeT[rest[0]] = 1;
   }
+  var byeT = new Uint8Array(NO), premTop = 0, baseBye = new Uint8Array(NO);
   var base = new Uint8Array(NO), minIn, keep;
   for (mask = 0; mask < total; mask++) {
     curMask = mask;
@@ -5268,11 +5279,23 @@ function curPaths_(c, rem) {
     for (gi = 0; gi < n; gi++) { var wi = (mask >> gi) & 1 ? gb[gi] : ga[gi]; w[wi]++; gained[wi][mask]++; }
     field();
     minIn = 99;
-    for (i = 0; i < NO; i++) { base[i] = chosen[i]; if (chosen[i]) { inA[i][mask] = 1; poss[i][mask] = 1; if (w[i] < minIn) minIn = w[i]; } }
+    for (i = 0; i < NO; i++) {
+      base[i] = chosen[i]; baseBye[i] = byeT[i];
+      if (chosen[i]) { inA[i][mask] = 1; poss[i][mask] = 1; if (w[i] < minIn) minIn = w[i]; }
+      if (byeT[i]) { byeA[i][mask] = 1; byePoss[i][mask] = 1; }
+    }
     for (i = 0; i < NO; i++) {
       keep = pf[i];
-      if (base[i]) { pf[i] = -1; field(); if (chosen[i]) sol[i][mask] = 1; }
-      else if (w[i] >= minIn) { pf[i] = 1e9; field(); if (chosen[i]) poss[i][mask] = 1; }
+      if (base[i]) {
+        pf[i] = -1; field();
+        if (chosen[i]) sol[i][mask] = 1;
+        if (baseBye[i] && byeT[i]) byeSol[i][mask] = 1;
+        if (!baseBye[i]) { pf[i] = 1e9; field(); if (byeT[i]) byePoss[i][mask] = 1; }
+      } else if (w[i] >= minIn) {
+        pf[i] = 1e9; field();
+        if (chosen[i]) poss[i][mask] = 1;
+        if (byeT[i]) byePoss[i][mask] = 1;
+      }
       pf[i] = keep;
     }
   }
@@ -5308,8 +5331,8 @@ function curPaths_(c, rem) {
     if (a.n === R[a.y]) return '<b>' + owners[a.y] + '</b> loses to ' + list;
     return '<b>' + owners[a.y] + '</b> loses ' + (a.n === 1 ? 'at least once' : 'at least ' + a.n + ' times') + ' (plays ' + list + ')';
   }
-  function help(x, k) {     // simplest extra results that make "k or more wins" enough
-    var gx = gained[x], inx = inA[x], solx = sol[x], bad = [], ok = [], m;
+  function help(x, k, S) {     // simplest extra results that make "k or more wins" enough
+    var gx = gained[x], inx = S.a[x], solx = S.s[x], bad = [], ok = [], m;
     // bad = any outcome with k or more wins that still misses; ok = outcomes with exactly k wins that get in,
     // so every option listed really is reachable with exactly that many wins
     for (m = 0; m < total; m++) { if (gx[m] < k) continue; if (!inx[m]) bad.push(m); else if (gx[m] === k) ok.push(m); }
@@ -5359,8 +5382,9 @@ function curPaths_(c, rem) {
     });
     return { any: true, sols: sols };
   }
-  function analyze(o) {
-    var x = oi[o], gx = gained[x], inx = inA[x], solx = sol[x], px = poss[x], r = R[x], k, m;
+  function analyze(o, kind) {
+    var S = kind === 'bye' ? { a: byeA, s: byeSol, p: byePoss } : { a: inA, s: sol, p: poss };
+    var x = oi[o], gx = gained[x], inx = S.a[x], solx = S.s[x], px = S.p[x], r = R[x], k, m;
     var allIn = [], allSol = [], anyIn = [], anyPoss = [];
     for (k = 0; k <= r; k++) { allIn.push(true); allSol.push(true); anyIn.push(false); anyPoss.push(false); }
     for (m = 0; m < total; m++) {
@@ -5374,14 +5398,15 @@ function curPaths_(c, rem) {
     for (k = r; k >= 0; k--) { if (allSol[k]) kSol = k; else break; }
     var levels = [];
     for (k = (kMin == null ? r : kMin - 1); k >= 0; k--) {
-      if (anyIn[k]) { var h = help(x, k); levels.push({ k: k, sols: h.sols }); }
+      if (anyIn[k]) { var h = help(x, k, S); levels.push({ k: k, sols: h.sols }); }
       else if (anyPoss[k]) levels.push({ k: k, tie: true });
     }
     return { o: o, remain: r, kMin: kMin, kSol: kSol, levels: levels, alive: anyPoss.some(Boolean), text: function (a, k2) { return atomText(a, x, k2); } };
   }
   var res = { n: n, analyze: analyze,
     // who is in for one specific outcome (bit i set = second-listed owner wins game i); used to cross-check against the standings code
-    fieldFor: function (m) { return owners.filter(function (o, i2) { return inA[i2][m]; }); } };
+    fieldFor: function (m) { return owners.filter(function (o, i2) { return inA[i2][m]; }); },
+    byesFor: function (m) { return owners.filter(function (o, i2) { return byeA[i2][m]; }); } };
   PATHCACHE[key] = res;
   return res;
 }
@@ -5816,19 +5841,21 @@ function renderCurrent() {
       sHtml += '<h2 style="font-size:15px">🛣️ Paths to the playoffs — ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>';
       function wins(k) { return k + ' win' + (k === 1 ? '' : 's'); }
       var pHtml = '';
-      aliveS.forEach(function (x) {
-        var A = paths.analyze(x.o), lines = [];
+      // one set of wording for both races; T = { got: 'he’s in', none: '...' }
+      function pathLines(A, T) {
+        var lines = [];
         var PFNOTE = ' <span class="pfdep">• needs his points-for edge to hold</span>';
         function need(k) { return k === A.remain ? 'Win out (' + wins(k) + ')' : 'Win ' + k + ' of ' + A.remain; }
-        if (A.kSol === 0) lines.push('<b>He’s in.</b> No result can knock him out.');
-        else if (A.kMin === 0) lines.push('<b>In as things stand</b>, with no more wins needed, as long as his points-for edge holds.' +
+        if (A.kSol === 0) lines.push('<b>' + T.done + '</b> No result can change it.');
+        else if (A.kMin === 0) lines.push('<b>' + T.now + '</b>, with no more wins needed, as long as his points-for edge holds.' +
           (A.kSol != null ? ' ' + need(A.kSol) + ' and it’s locked regardless.' : ''));
-        else if (A.kMin != null && A.kSol === A.kMin) lines.push('<b>' + need(A.kMin) + '</b> and he’s in, no help needed.');
-        else if (A.kMin != null) lines.push('<b>' + need(A.kMin) + '</b> and he’s in, as long as his points-for edge holds.' +
+        else if (A.kMin != null && A.kSol === A.kMin) lines.push('<b>' + need(A.kMin) + '</b> and ' + T.got + ', no help needed.');
+        else if (A.kMin != null) lines.push('<b>' + need(A.kMin) + '</b> and ' + T.got + ', as long as his points-for edge holds.' +
           (A.kSol != null ? ' ' + need(A.kSol) + ' and it’s locked regardless.' : ''));
         else if (A.alive) lines.push('Can’t do it on his own wins alone.');
         A.levels.forEach(function (lv) {
           var lead = lv.k === 0 ? 'With <b>no more wins</b>' : lv.k === A.remain ? 'By <b>winning out</b>' : 'With <b>' + wins(lv.k) + '</b>';
+          if (T.brief && (lv.tie || !lv.sols.length)) return;     // bye cards skip the dead-end rows
           if (lv.tie) { lines.push(lead + ', he would have to make up ground in points for to win a tiebreaker.'); return; }
           if (!lv.sols.length) { lines.push(lead + ', he needs several other results to fall just right.'); return; }
           // one-result options first; two-result combos only when there are fewer than two of those
@@ -5840,18 +5867,38 @@ function renderCurrent() {
               : soTxt(show[0]) + '.') +
             (lv.sols.length > show.length ? '<div class="schsub">plus ' + (lv.sols.length - show.length) + ' longer-shot combination' + (lv.sols.length - show.length === 1 ? '' : 's') + '</div>' : ''));
         });
+        return lines;
+      }
+      function pathCard(o, A, lines, cls) {
+        return '<div class="pathcard' + (cls ? ' ' + cls : '') + '"><div class="pathhead"><b>' + o + '</b> <span class="schrec">' + c.st[o].w + '-' + c.st[o].l + ' · ' + c.div[o] + ' Div · ' + A.remain + ' left</span></div>' +
+          '<ul class="pathlines">' + lines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>';
+      }
+      aliveS.forEach(function (x) {
+        var A = paths.analyze(x.o), lines = pathLines(A, { done: 'He’s in.', now: 'In as things stand', got: 'he’s in' });
         if (!A.alive || x.dead) lines = [magicLine(x)];
         else if (x.o === sixO) lines.push('<b>6th seed:</b> he holds it right now on points for, so that is his fallback.');
         else if (x.deficit <= 0) lines.push('<b>6th seed:</b> he has more points for than ' + (sixO || 'the current 6 seed') + ', so the points-for spot is his fallback if the record falls short.');
         else lines.push('<b>6th seed:</b> the points-for spot is also open to him. He is ' + n1(x.deficit) + ' points behind ' + (sixO || 'the current 6 seed') + '.');
-        pHtml += '<div class="pathcard"><div class="pathhead"><b>' + x.o + '</b> <span class="schrec">' + x.rec + ' · ' + c.div[x.o] + ' Div · ' + A.remain + ' left</span></div>' +
-          '<ul class="pathlines">' + lines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>';
+        pHtml += pathCard(x.o, A, lines);
       });
       sHtml += aliveS.length ? pHtml : '<div class="note">Everyone is either in or out — see above and below.</div>';
       sHtml += '<div class="note">Covers every way the last ' + remG.length + ' games can fall, with tiebreakers applied: two teams tied go to head-to-head for the season ' +
         '(including games still to play), a split series goes to points for, and three or more tied go straight to points for. ' +
         'Points for is taken as it stands today; anything marked “needs his points-for edge to hold” could change if the scoring order flips. ' +
         'The 6th spot goes to the most points for among the teams left out.</div>';
+      // first-round byes, same engine and same tiebreakers
+      var bHtml = '', bLocked = [];
+      c.owners.slice().sort(function (a, b) { return c.st[b].w - c.st[a].w || c.st[b].pf - c.st[a].pf; }).forEach(function (o) {
+        var B = paths.analyze(o, 'bye');
+        if (!B.alive) return;
+        if (B.kSol === 0) { bLocked.push(o); return; }
+        bHtml += pathCard(o, B, pathLines(B, { done: 'He has a bye.', now: 'Holds a bye as things stand', got: 'he has a bye', brief: true }), 'byecard');
+      });
+      sHtml += '<h2 style="font-size:15px">\uD83D\uDECB\uFE0F Paths to a first-round bye \u2014 ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>' +
+        (bLocked.length ? '<div class="note" style="margin-bottom:8px"><b>' + bLocked.join(' and ') + '</b> ' + (bLocked.length === 1 ? 'has' : 'have') + ' locked up a bye.</div>' : '') +
+        (bHtml || '<div class="note">Both byes are settled.</div>') +
+        '<div class="note">Two byes: one goes to the Premier division winner, the other to the best record among the other four teams that get in on record. ' +
+        'Same tiebreakers as above. The points-for 6 seed can\u2019t earn a bye.</div>';
     }
     if (scen) {
       if (!paths) sHtml += '<h2 style="font-size:15px">🎯 Clinching scenarios — Week ' + scenWk + '</h2>';
@@ -5898,7 +5945,7 @@ function renderCurrent() {
             bc.map(function (cd) { return '<li style="margin:3px 0">' + scen.phrase(cd, o) + '</li>'; }).join('') + '</ol>';
         byeHtml += '<li style="margin:7px 0"><b>' + o + '</b> (' + c.st[o].w + '-' + c.st[o].l + '): ' + bt + '</li>';
       });
-      if (byeHave.length < 2) {
+      if (byeHave.length < 2 && !paths) {
         sHtml += '<h2 style="font-size:15px">🛋️ First-round bye scenarios — Week ' + scenWk + '</h2>' +
           (byeHtml ? '<ul>' + byeHtml + '</ul>' : '<div class="note">Nobody can lock up a bye in Week ' + scenWk + '.</div>') +
           '<div class="note">Byes go to the top two seeds. ' + (byeHave.length ? byeHave.join(' and ') + ' already ' + (byeHave.length === 1 ? 'has' : 'have') + ' one.' : '') + '</div>';
@@ -5931,7 +5978,7 @@ function renderCurrent() {
     sHtml += deadS.length ? '<ul>' + deadS.map(function (x) {
       return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') — no auto-bid path, and the points-for seed sits ' + n1(x.deficit) + ' away.</li>';
     }).join('') + '</ul>' : '<div class="note">Nobody is fully buried — the points-for seed keeps everyone mathematically alive.</div>';
-    sHtml += '<div class="note">Deterministic math only: wins and losses, ties counted against (so clinches can arrive a touch sooner than shown). “Slip-ups” means any combination of losses by the teams ahead in the race.</div>';
+    if (!paths) sHtml += '<div class="note">Deterministic math only: wins and losses, ties counted against (so clinches can arrive a touch sooner than shown). “Slip-ups” means any combination of losses by the teams ahead in the race.</div>';
     el('curScenarios').innerHTML = sHtml;
   } else {
     el('curScenarios').innerHTML = '<div class="note">Playoff scenarios appear in week 12.</div>';
