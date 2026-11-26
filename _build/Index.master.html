@@ -5069,7 +5069,7 @@ function renderDivisions() {
   }).filter(Boolean);
   el('dhBWNote').innerHTML = bwNotes.join(' &nbsp;|&nbsp; ');
 }
-var curSub = 'standings', PATHS_PENDING = false;
+var curSub = 'standings', PATHS_PENDING = false, scenView = 'po';
 var CURTABS = [['standings', 'Standings'], ['playoffs', 'Playoff picture'], ['scenarios', 'Playoff scenarios'],
                ['divvdiv', 'Division vs division'],
                ['pf', 'Points for'], ['pa', 'Points against'], ['honors', 'Weekly honors']];
@@ -5090,7 +5090,7 @@ function initCurTabs() {
     b.onclick = function () {
       curSub = b.dataset.sub; showCurSub();
       if (curSub === 'scenarios' && PATHS_PENDING) { try { renderCurrent(); } catch (ePP) { } }
-      if (CURPAGE === 'current') routeSetQS({ tab: curSub === 'standings' ? '' : curSub });
+      if (CURPAGE === 'current') routeSetQS({ tab: curSub === 'standings' ? '' : curSub, view: curSub === 'scenarios' && scenView === 'bye' ? 'bye' : '' });
     };
   });
   showCurSub();
@@ -5757,7 +5757,7 @@ function renderCurrent() {
 
   // playoff scenarios (tab appears from week 12)
   if (SCEN_OK) {
-    var sHtml = '';
+    var sHtml = '', byeSec = '';
     var sixO = null;
     for (var sk in c.seeds) if (c.seeds[sk] === 6) sixO = sk;
     var clin = [], aliveS = [], deadS = [];
@@ -5894,11 +5894,11 @@ function renderCurrent() {
         if (B.kSol === 0) { bLocked.push(o); return; }
         bHtml += pathCard(o, B, pathLines(B, { done: 'He has a bye.', now: 'Holds a bye as things stand', got: 'he has a bye', brief: true }), 'byecard');
       });
-      sHtml += '<h2 style="font-size:15px">\uD83D\uDECB\uFE0F Paths to a first-round bye \u2014 ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>' +
+      byeSec = '<h2 style="font-size:15px">\uD83D\uDECB\uFE0F Paths to a first-round bye \u2014 ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>' +
         (bLocked.length ? '<div class="note" style="margin-bottom:8px"><b>' + bLocked.join(' and ') + '</b> ' + (bLocked.length === 1 ? 'has' : 'have') + ' locked up a bye.</div>' : '') +
         (bHtml || '<div class="note">Both byes are settled.</div>') +
         '<div class="note">Two byes: one goes to the Premier division winner, the other to the best record among the other four teams that get in on record. ' +
-        'Same tiebreakers as above. The points-for 6 seed can\u2019t earn a bye.</div>';
+        'The points-for 6 seed can\u2019t earn a bye.</div>';
     }
     if (scen) {
       if (!paths) sHtml += '<h2 style="font-size:15px">🎯 Clinching scenarios — Week ' + scenWk + '</h2>';
@@ -5979,7 +5979,27 @@ function renderCurrent() {
       return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') — no auto-bid path, and the points-for seed sits ' + n1(x.deficit) + ' away.</li>';
     }).join('') + '</ul>' : '<div class="note">Nobody is fully buried — the points-for seed keeps everyone mathematically alive.</div>';
     if (!paths) sHtml += '<div class="note">Deterministic math only: wins and losses, ties counted against (so clinches can arrive a touch sooner than shown). “Slip-ups” means any combination of losses by the teams ahead in the race.</div>';
-    el('curScenarios').innerHTML = sHtml;
+    if (byeSec) {
+      // two views under this tab: the playoff race and the bye race
+      if (!renderCurrent._scq) { renderCurrent._scq = 1; if (CURPAGE === 'current' && routeGetQS('view') === 'bye') scenView = 'bye'; }
+      el('curScenarios').innerHTML = '<div class="pills subpills" id="scenPills">' +
+        '<button class="pill" data-sv="po">Playoffs</button><button class="pill" data-sv="bye">First-round bye</button></div>' +
+        '<div id="scenPo">' + sHtml + '</div><div id="scenBye">' + byeSec +
+        '<div class="note">Covers every way the remaining games can fall. Two teams tied go to head-to-head for the season, a split series goes to points for, ' +
+        'and three or more tied go straight to points for. Points for is taken as it stands today.</div></div>';
+      var showScen = function () {
+        el('scenPo').style.display = scenView === 'po' ? '' : 'none';
+        el('scenBye').style.display = scenView === 'bye' ? '' : 'none';
+        el('scenPills').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.sv === scenView); });
+      };
+      el('scenPills').querySelectorAll('button').forEach(function (b) {
+        b.onclick = function () {
+          scenView = b.dataset.sv; showScen();
+          if (CURPAGE === 'current') routeSetQS({ tab: 'scenarios', view: scenView === 'bye' ? 'bye' : '' });
+        };
+      });
+      showScen();
+    } else el('curScenarios').innerHTML = sHtml;
   } else {
     el('curScenarios').innerHTML = '<div class="note">Playoff scenarios appear in week 12.</div>';
   }
