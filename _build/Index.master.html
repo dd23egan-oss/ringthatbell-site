@@ -5401,7 +5401,8 @@ function curPaths_(c, rem) {
       if (anyIn[k]) { var h = help(x, k, S); levels.push({ k: k, sols: h.sols }); }
       else if (anyPoss[k]) levels.push({ k: k, tie: true });
     }
-    return { o: o, remain: r, kMin: kMin, kSol: kSol, levels: levels, alive: anyPoss.some(Boolean), text: function (a, k2) { return atomText(a, x, k2); } };
+    return { o: o, remain: r, kMin: kMin, kSol: kSol, levels: levels, alive: anyPoss.some(Boolean), text: function (a, k2) { return atomText(a, x, k2); },
+      own: function (a) { return { opp: owners[loserOf(a)], wk: rem[a.gi][2] }; } };
   }
   var res = { n: n, analyze: analyze,
     // who is in for one specific outcome (bit i set = second-listed owner wins game i); used to cross-check against the standings code
@@ -5858,6 +5859,17 @@ function renderCurrent() {
           if (T.brief && (lv.tie || !lv.sols.length)) return;     // bye cards skip the dead-end rows
           if (lv.tie) { lines.push(lead + ', he would have to make up ground in points for to win a tiebreaker.'); return; }
           if (!lv.sols.length) { lines.push(lead + ', he needs several other results to fall just right.'); return; }
+          // a win over one particular opponent that settles it by itself gets its own plain sentence
+          var mine = lv.sols.filter(function (so) { return so.length === 1 && so[0].own; }), beat = [];
+          mine.forEach(function (so) {
+            var g = A.own(so[0]); beat.push(g.opp);
+            lines.push('<b>' + (lv.k === 1 ? 'Beat ' + g.opp + ' in Week ' + g.wk : 'Win ' + lv.k + ', one of them over ' + g.opp + ' (Week ' + g.wk + ')') + '</b> and ' + T.got +
+              (lv.k === 1 && A.remain > 1 ? ', even if he loses the rest' : '') + (so.firm ? '.' : ', as long as his points-for edge holds.'));
+          });
+          var others = lv.sols.filter(function (so) { return mine.indexOf(so) === -1; });
+          if (!others.length) return;
+          if (beat.length) lead = (lv.k === 0 ? lead : 'With <b>' + wins(lv.k) + '</b>') + ' but not over ' + beat.join(' or ');
+          lv = { k: lv.k, sols: others };
           // one-result options first; two-result combos only when there are fewer than two of those
           var one = lv.sols.filter(function (so) { return so.length === 1; }), two = lv.sols.filter(function (so) { return so.length === 2; });
           var show = one.slice(0, 4).concat(one.length >= 2 ? [] : two.slice(0, 3 - one.length));
