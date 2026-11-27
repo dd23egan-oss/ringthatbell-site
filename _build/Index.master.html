@@ -5848,8 +5848,12 @@ function rtbScenList(E, owner, kind, opts) {
   });
   // how many finishes each line covers, then order: no-conditions first, broadest first
   lines.forEach(function (ln) {
-    var c2 = 0;
-    for (m = 0; m < total; m++) if (rtbLineMatches(E, ln, x, m)) c2++;
+    var c2 = 0, fr = N, t2;
+    if (ln.type === 'wins') { for (m = 0; m < total; m++) if (gx[m] >= ln.k) c2++; }
+    else {
+      for (t2 = ln.fixed; t2; t2 >>>= 1) fr -= t2 & 1;                     // games this line leaves open
+      c2 = ln.alts ? Math.pow(2, fr) - Math.pow(2, fr - ln.alts.length) : Math.pow(2, fr);
+    }
     ln.cnt = c2;
   });
   lines.sort(function (a, b) {
@@ -6009,8 +6013,8 @@ function scenCrossCheck_(c, E, remG, kind) {
   CUR.games.rows = saved;
   return ok && !E.inexact;
 }
-function scenListHtml_(E, L, lead) {
-  var o = L.owner, LIM = 8;
+function scenListHtml_(E, L, lead, all) {
+  var o = L.owner, LIM = all ? 1e9 : 8;
   if (!L.ok) return '<div class="note">These scenarios failed their own check, so they are not shown.</div>';
   var cm = rtbScenCommon(E, L, o), skip = cm ? cm.fixed : 0;      // results every line shares are stated once, up top
   var items = L.lines.map(function (ln, i) {
@@ -6029,10 +6033,24 @@ function scenCardHtml_(E, c, L, lead) {
     scenListHtml_(E, L, lead) + '</div>';
 }
 // One owner's list for one race, worked out once per data load. null = the engine failed its check against the standings code.
+var SCEN_OLD_FOR = null;      // set to the data the list layout could not certify, so that load falls back to the summary cards
+function scenOk_(c, remG, kind) {       // engine + its check against the standings code, once per data load
+  var E = scenEngine_(c, remG, [kind]), ck = 'L|' + kind + '|' + c.played + '|' + remG.length + '|ok';
+  if (SCENC[ck] == null) SCENC[ck] = scenCrossCheck_(c, E, remG, kind);
+  return SCENC[ck] ? E : null;
+}
+function scenStatus_(E, kind) {         // per owner: 'in' (every finish), 'out' (no finish), 'open'
+  var out = {};
+  E.owners.forEach(function (o, x) {
+    var cl = E.cls[kind][x], a = 0, n = 0, m;
+    for (m = 0; m < E.total; m++) { if (cl[m] === 1) a++; else if (cl[m] === 0) n++; }
+    out[o] = a === E.total ? 'in' : n === E.total ? 'out' : 'open';
+  });
+  return out;
+}
 function scenListFor_(c, remG, kind, o) {
-  var E = scenEngine_(c, remG, [kind]), ck = 'L|' + kind + '|' + c.played + '|' + remG.length;
-  if (SCENC[ck + '|ok'] == null) SCENC[ck + '|ok'] = scenCrossCheck_(c, E, remG, kind);
-  if (!SCENC[ck + '|ok']) return null;
+  var E = scenOk_(c, remG, kind), ck = 'L|' + kind + '|' + c.played + '|' + remG.length;
+  if (!E) return null;
   if (!SCENC[ck + '|' + o]) {
     var L = rtbScenList(E, o, kind, { maxLines: 700 });
     // the self-check re-tests every line against every finish; for the very long three-weeks-out lists it uses an even spread of finishes
@@ -6043,8 +6061,25 @@ function scenListFor_(c, remG, kind, o) {
 }
 // A placeholder that scenFill_ turns into the owner's list. Lists are filled one at a time after the page has drawn,
 // so a heavy week (three weeks out) never freezes the tab.
-function scenSlot_(o, kind, lead) {
-  return '<div class="scfill" data-o="' + o + '" data-k="' + kind + '" data-lead="' + lead + '"><div class="schsub">Working out every scenario…</div></div>';
+function scenSlot_(o, kind, lead, fold) {
+  return '<div class="scfill" data-o="' + o + '" data-k="' + kind + '" data-lead="' + lead + '"' + (fold ? ' data-fold="1"' : '') + '><div class="schsub">Working out every scenario…</div></div>';
+}
+// For a long shot in the summary layout: one sentence on how long the chain is, with the full list a tap away.
+function scenFoldHtml_(E, L, lead) {
+  var x = E.owners.indexOf(L.owner), own = 0, i, least = 99, noPf = 0;
+  for (i = 0; i < E.N; i++) if (E.ga[i] === x || E.gb[i] === x) own |= 1 << i;
+  L.lines.forEach(function (ln) {
+    var n = ln.alts ? 1 : 0, t;
+    if (ln.type === 'cube') for (t = ln.fixed & ~own; t; t >>>= 1) n += t & 1;
+    if (n < least) least = n;
+    if (!ln.cond) noPf++;
+  });
+  var nL = L.lines.length, cm = rtbScenCommon(E, L, L.owner);
+  var txt = (cm && (cm.fixed & own) === own ? 'He has to win out, and that' : 'His own wins') + ' will not be enough: ' +
+    (nL === 1 ? 'one combination still gets him in, and it needs ' : nL + ' combinations still get him in, and the shortest needs ') +
+    least + ' other game' + (least === 1 ? '' : 's') + ' to go his way' +
+    (noPf === 0 ? ', plus passing teams on points for.' : noPf < nL ? '. All but ' + noPf + ' also need help on points for.' : '.');
+  return txt + '<details class="scmore"><summary>Show ' + (nL === 1 ? 'the scenario' : 'all ' + nL + ' scenarios') + '</summary>' + scenListHtml_(E, L, lead, true) + '</details>';
 }
 function scenFill_(host, c, remG) {
   if (!host) return;
@@ -6061,6 +6096,7 @@ function scenFill_(host, c, remG) {
         if (!r) html = '<div class="note">These scenarios did not pass their check against the standings rules, so they are hidden for now.</div>';
         else if (r.L.nAlways === r.L.total) html = kind === 'bye' ? '<b>He has a bye.</b> No result can change it.' : '<b>He’s in.</b> No result can change it.';
         else if (!r.L.lines.length) html = kind === 'bye' ? 'No way to a bye from here.' : 'No way in on record from here.';
+        else if (sl.getAttribute('data-fold') && r.L.ok) html = scenFoldHtml_(r.E, r.L, sl.getAttribute('data-lead'));
         else html = scenListHtml_(r.E, r.L, sl.getAttribute('data-lead'));
       } catch (eF) { html = '<div class="note">These scenarios could not be worked out.</div>'; }
       sl.innerHTML = html;
@@ -6460,10 +6496,14 @@ function renderCurrent() {
       else aliveS.push({ o: o, rec: rec6, m: m6, raw: raw6, dead: st6.autoDead, deficit: deficit6 });
     });
     sHtml += '<h2 style="font-size:15px">✅ Clinched</h2>';
-    sHtml += clin.length ? '<ul>' + clin.map(function (x) {
-      return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') has locked a playoff berth' +
-        (PM.byeClinched(x.o) ? ' <b>and a first-round bye</b>' : PM.divClinched(x.o) ? ' and the ' + c.div[x.o] + ' division title' : '') + '.</li>';
-    }).join('') + '</ul>' : '<div class="note">Nobody has clinched yet.</div>';
+    function clinHtml(list, bye, dv) {      // bye/dv: optional exact answers; without them the plain win-loss math decides
+      return list.length ? '<ul>' + list.map(function (o) {
+        var hasBye = bye ? bye[o] === 'in' : PM.byeClinched(o), hasDiv = dv ? dv[o] === 'in' : PM.divClinched(o);
+        return '<li style="margin:5px 0"><b>' + o + '</b> (' + c.st[o].w + '-' + c.st[o].l + ') has locked a playoff berth' +
+          (hasBye ? ' <b>and a first-round bye</b>' : hasDiv ? ' and the ' + c.div[o] + ' division title' : '') + '.</li>';
+      }).join('') + '</ul>' : '<div class="note">Nobody has clinched yet.</div>';
+    }
+    sHtml += '<div id="scClin">' + clinHtml(clin.map(function (x) { return x.o; })) + '</div>';
     // ESPN-style this-week scenarios need this week's matchups covering all owners
     var scen = null, scenWk = 0, scenGames = null;
     if (TW && TW.games && TW.games.length && TW.meta) {
@@ -6515,18 +6555,39 @@ function renderCurrent() {
         remG.sort(function (p, q) { return p[2] - q[2]; });
       }
     } catch (eRem) { remG = []; }
-    var paths = null, LISTFMT = CURPAGE === 'current' && routeGetQS('fmt') === 'list';     // ?fmt=list previews the scenario-list layout
+    var paths = null, fmtQ = CURPAGE === 'current' ? routeGetQS('fmt') : null;
+    var remOk = remG.length > 0 && remG.every(function (g) { return PM.remain[g[0]] > 0 && PM.remain[g[1]] > 0; });
+    // Two weeks out or closer, the Playoffs and bye views are complete scenario lists. Three weeks out those lists run to
+    // hundreds of lines per owner, so that week keeps the summary cards. ?fmt=list and ?fmt=old force one or the other.
+    var listOn = remOk && remG.length <= 18 && SCEN_OLD_FOR !== CUR && (fmtQ === 'list' || (fmtQ !== 'old' && remG.length <= 12));
     PATHS_PENDING = false;
     try {
-      if (remG.length && remG.every(function (g) { return PM.remain[g[0]] > 0 && PM.remain[g[1]] > 0; })) {
+      if (remOk && !listOn) {
         // the three-weeks-out version is a heavy calculation, so it waits until this tab is opened
         if (remG.length > 12 && curSub !== 'scenarios') PATHS_PENDING = true;
         else paths = curPaths_(c, remG);
       }
     } catch (ePath) { paths = null; }
+    var showPaths = !!paths || listOn, nW = 0;
+    if (showPaths) { var wksLeft = {}; remG.forEach(function (g) { wksLeft[g[2]] = 1; }); nW = Object.keys(wksLeft).length; }
+    function sixLine(o) {       // the points-for 6th spot, which no win/loss scenario can describe
+      var df = PM.bench - c.st[o].pf;
+      return o === sixO ? '<b>6th seed:</b> he holds it right now on points for, so that is his fallback.'
+        : df <= 0 ? '<b>6th seed:</b> he has more points for than ' + (sixO || 'the current 6 seed') + ', so the points-for spot is his fallback if the record falls short.'
+        : '<b>6th seed:</b> the points-for spot is also open to him. He is ' + n1(df) + ' points behind ' + (sixO || 'the current 6 seed') + '.';
+    }
+    function listCard(o, body, cls) {
+      return '<div class="pathcard' + (cls ? ' ' + cls : '') + '"><div class="pathhead"><b>' + o + '</b> <span class="schrec">' + c.st[o].w + '-' + c.st[o].l + ' · ' + c.div[o] + ' Div · ' + PM.remain[o] + ' left</span></div>' + body + '</div>';
+    }
+    var BYENOTE = '<div class="note">Two byes: one goes to the Premier division winner, the other to the best record among the other four teams that get in on record. ' +
+      'The points-for 6 seed can\u2019t earn a bye.</div>';
+    if (listOn) {
+      sHtml += '<h2 style="font-size:15px">🛣️ Paths to the playoffs — ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>' +
+        '<div id="scPaths"><div class="note">Working out every scenario…</div></div>';
+      byeSec = '<h2 style="font-size:15px">\uD83D\uDECB\uFE0F Paths to a first-round bye \u2014 ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>' +
+        '<div id="scByeBody"><div class="note">Working out every scenario…</div></div>' + BYENOTE;
+    }
     if (paths) {
-      var wksLeft = {}; remG.forEach(function (g) { wksLeft[g[2]] = 1; });
-      var nW = Object.keys(wksLeft).length;
       sHtml += '<h2 style="font-size:15px">🛣️ Paths to the playoffs — ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>';
       function wins(k) { return k + ' win' + (k === 1 ? '' : 's'); }
       var pHtml = '';
@@ -6575,14 +6636,11 @@ function renderCurrent() {
           '<ul class="pathlines">' + lines.map(function (l) { return l && l.raw ? '<li class="scli">' + l.raw + '</li>' : '<li>' + l + '</li>'; }).join('') + '</ul></div>';
       }
       aliveS.forEach(function (x) {
-        var A = paths.analyze(x.o), lines, live = A.alive && !x.dead;
-        if (LISTFMT && live) lines = [{ raw: scenSlot_(x.o, 'po', 'Makes the playoffs with') }];
-        else {
-          lines = pathLines(A, { done: 'He’s in.', now: 'In as things stand', got: 'he’s in' });
-          // nothing simple to say (he needs a long chain of results): spell out every combination instead of waving at it
-          if (live && A.kMin == null && !A.levels.some(function (lv) { return lv.sols && lv.sols.length; }))
-            lines = ['Can’t do it on his own wins alone. Every way it can still happen:', { raw: scenSlot_(x.o, 'po', 'Makes the playoffs with') }];
-        }
+        var A = paths.analyze(x.o), live = A.alive && !x.dead;
+        var lines = pathLines(A, { done: 'He’s in.', now: 'In as things stand', got: 'he’s in' });
+        // nothing simple to say (he needs a long chain of results): say how long the chain is and keep the full list a tap away
+        if (live && A.kMin == null && !A.levels.some(function (lv) { return lv.sols && lv.sols.length; }))
+          lines = [{ raw: scenSlot_(x.o, 'po', 'Makes the playoffs with', true) }];
         if (!live) lines = [magicLine(x)];
         else if (x.o === sixO) lines.push('<b>6th seed:</b> he holds it right now on points for, so that is his fallback.');
         else if (x.deficit <= 0) lines.push('<b>6th seed:</b> he has more points for than ' + (sixO || 'the current 6 seed') + ', so the points-for spot is his fallback if the record falls short.');
@@ -6590,8 +6648,7 @@ function renderCurrent() {
         pHtml += pathCard(x.o, A, lines);
       });
       sHtml += aliveS.length ? pHtml : '<div class="note">Everyone is either in or out — see above and below.</div>';
-      sHtml += LISTFMT ? '<div class="note">' + SCEN_FOOT + ' The 6th spot is separate: it goes to the most points for among the teams left out.</div>'
-        : '<div class="note">Covers every way the last ' + remG.length + ' games can fall, with tiebreakers applied: two teams tied go to head-to-head for the season ' +
+      sHtml += '<div class="note">Covers every way the last ' + remG.length + ' games can fall, with tiebreakers applied: two teams tied go to head-to-head for the season ' +
         '(including games still to play), a split series goes to points for, and three or more tied go straight to points for. ' +
         'Points for is taken as it stands today; anything marked “needs his points-for edge to hold” could change if the scoring order flips. ' +
         'The 6th spot goes to the most points for among the teams left out.</div>';
@@ -6601,17 +6658,14 @@ function renderCurrent() {
         var B = paths.analyze(o, 'bye');
         if (!B.alive) return;
         if (B.kSol === 0) { bLocked.push(o); return; }
-        bHtml += pathCard(o, B, LISTFMT ? [{ raw: scenSlot_(o, 'bye', 'Gets a first-round bye with') }]
-          : pathLines(B, { done: 'He has a bye.', now: 'Holds a bye as things stand', got: 'he has a bye', brief: true }), 'byecard');
+        bHtml += pathCard(o, B, pathLines(B, { done: 'He has a bye.', now: 'Holds a bye as things stand', got: 'he has a bye', brief: true }), 'byecard');
       });
       byeSec = '<h2 style="font-size:15px">\uD83D\uDECB\uFE0F Paths to a first-round bye \u2014 ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>' +
         (bLocked.length ? '<div class="note" style="margin-bottom:8px"><b>' + bLocked.join(' and ') + '</b> ' + (bLocked.length === 1 ? 'has' : 'have') + ' locked up a bye.</div>' : '') +
-        (bHtml || '<div class="note">Both byes are settled.</div>') +
-        '<div class="note">Two byes: one goes to the Premier division winner, the other to the best record among the other four teams that get in on record. ' +
-        'The points-for 6 seed can\u2019t earn a bye.</div>';
+        (bHtml || '<div class="note">Both byes are settled.</div>') + BYENOTE;
     }
     if (scen) {
-      if (!paths) sHtml += '<h2 style="font-size:15px">🎯 Clinching scenarios — Week ' + scenWk + '</h2>';
+      if (!showPaths) sHtml += '<h2 style="font-size:15px">🎯 Clinching scenarios — Week ' + scenWk + '</h2>';
       var anyScen = false, scHtml = '';
       aliveS.forEach(function (x) {
         var opp = null;
@@ -6640,8 +6694,8 @@ function renderCurrent() {
         }
         scHtml += '<li style="margin:7px 0">' + head + ': ' + body + '</li>';
       });
-      if (!paths) sHtml += aliveS.length ? '<ul>' + scHtml + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
-      if (!paths && aliveS.length && !anyScen) sHtml += '<div class="note">Nobody can clinch in Week ' + scenWk + ' — the first clinching scenarios will appear the following week.</div>';
+      if (!showPaths) sHtml += aliveS.length ? '<ul>' + scHtml + '</ul>' : '<div class="note">Everyone is either in or out — see above and below.</div>';
+      if (!showPaths && aliveS.length && !anyScen) sHtml += '<div class="note">Nobody can clinch in Week ' + scenWk + ' — the first clinching scenarios will appear the following week.</div>';
       // first-round bye scenarios: anyone (already in or not) who can lock a bye this week
       var byeHtml = '', byeHave = c.owners.filter(function (o) { return PM.byeClinched(o); });
       c.owners.slice().sort(function (a, b) { return c.st[b].w - c.st[a].w || c.st[b].pf - c.st[a].pf; }).forEach(function (o) {
@@ -6655,7 +6709,7 @@ function renderCurrent() {
             bc.map(function (cd) { return '<li style="margin:3px 0">' + scen.phrase(cd, o) + '</li>'; }).join('') + '</ol>';
         byeHtml += '<li style="margin:7px 0"><b>' + o + '</b> (' + c.st[o].w + '-' + c.st[o].l + '): ' + bt + '</li>';
       });
-      if (byeHave.length < 2 && !paths) {
+      if (byeHave.length < 2 && !showPaths) {
         sHtml += '<h2 style="font-size:15px">🛋️ First-round bye scenarios — Week ' + scenWk + '</h2>' +
           (byeHtml ? '<ul>' + byeHtml + '</ul>' : '<div class="note">Nobody can lock up a bye in Week ' + scenWk + '.</div>') +
           '<div class="note">Byes go to the top two seeds. ' + (byeHave.length ? byeHave.join(' and ') + ' already ' + (byeHave.length === 1 ? 'has' : 'have') + ' one.' : '') + '</div>';
@@ -6675,7 +6729,7 @@ function renderCurrent() {
         ewHtml += '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') ' + btxt + '</li>';
       });
       if (ewHtml) sHtml += '<h2 style="font-size:15px">😬 Elimination watch — Week ' + scenWk + '</h2><ul>' + ewHtml + '</ul>';
-    } else if (!paths) {
+    } else if (!showPaths) {
       sHtml += '<h2 style="font-size:15px">🎯 What it takes</h2>';
       sHtml += aliveS.length ? '<ul>' + aliveS.map(function (x) {
         return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + '): ' + magicLine(x) + '</li>';
@@ -6683,12 +6737,61 @@ function renderCurrent() {
       if (!TW && !TWLOADING) { try { ensureThisWeek(); } catch (eTW) {} }
       if (!TW) sHtml += '<div class="note">Loading this week’s matchups for exact clinching scenarios…</div>';
     }
-    if (paths && !TW && !TWLOADING) { try { ensureThisWeek(); } catch (eTW2) {} }
+    if (showPaths && !TW && !TWLOADING) { try { ensureThisWeek(); } catch (eTW2) {} }
     sHtml += '<h2 style="font-size:15px">⚰️ Out of it, within reason</h2>';
-    sHtml += deadS.length ? '<ul>' + deadS.map(function (x) {
+    var NOBURY = '<div class="note">Nobody is fully buried — the points-for seed keeps everyone mathematically alive.</div>';
+    sHtml += '<div id="scOut">' + (listOn ? '' : deadS.length ? '<ul>' + deadS.map(function (x) {
       return '<li style="margin:5px 0"><b>' + x.o + '</b> (' + x.rec + ') — no auto-bid path, and the points-for seed sits ' + n1(x.deficit) + ' away.</li>';
-    }).join('') + '</ul>' : '<div class="note">Nobody is fully buried — the points-for seed keeps everyone mathematically alive.</div>';
-    if (!paths) sHtml += '<div class="note">Deterministic math only: wins and losses, ties counted against (so clinches can arrive a touch sooner than shown). “Slip-ups” means any combination of losses by the teams ahead in the race.</div>';
+    }).join('') + '</ul>' : NOBURY) + '</div>';
+    // list layout: the cards, the clinched list and the out list all come from the one exact calculation
+    var byRec = function (a, b) { return c.st[b].w - c.st[a].w || c.st[b].pf - c.st[a].pf; };
+    var buildPo = function () {
+      var host = el('scPaths');
+      if (!host || host.getAttribute('data-built')) return;
+      host.setAttribute('data-built', '1');
+      setTimeout(function () {
+        if (!document.body.contains(host)) return;
+        var E = null;
+        try { E = scenOk_(c, remG, 'po'); } catch (eE) { E = null; }
+        if (!E) { SCEN_OLD_FOR = CUR; try { renderCurrent(); } catch (eR) { } return; }      // could not certify: show the summary cards instead
+        var st = scenStatus_(E, 'po'), cards = '', inL = [], outL = [], byeSt = null, divSt = null;
+        if (remG.length <= 12) { try { var Eb = scenOk_(c, remG, 'bye'), Ed = scenOk_(c, remG, 'div'); if (Eb) byeSt = scenStatus_(Eb, 'bye'); if (Ed) divSt = scenStatus_(Ed, 'div'); } catch (eS) { } }
+        c.owners.slice().sort(byRec).forEach(function (o) {
+          var df = PM.bench - c.st[o].pf;
+          if (st[o] === 'in') { inL.push(o); return; }
+          if (st[o] === 'open') { cards += listCard(o, scenSlot_(o, 'po', 'Makes the playoffs with') + '<ul class="pathlines"><li>' + sixLine(o) + '</li></ul>'); return; }
+          if (PM.remain[o] === 0 ? df > 0 : df > 40 * PM.remain[o]) { outL.push(o); return; }
+          cards += listCard(o, '<ul class="pathlines"><li>No way in on record from here. The points-for 6th seed is his only road.</li><li>' + sixLine(o) + '</li></ul>');
+        });
+        host.innerHTML = (cards || '<div class="note">Everyone is either in or out — see above and below.</div>') +
+          '<div class="note">' + SCEN_FOOT + ' The 6th spot is separate: it goes to the most points for among the teams left out.</div>';
+        if (el('scClin')) el('scClin').innerHTML = clinHtml(inL, byeSt, divSt);
+        if (el('scOut')) el('scOut').innerHTML = outL.length ? '<ul>' + outL.map(function (o) {
+          return '<li style="margin:5px 0"><b>' + o + '</b> (' + c.st[o].w + '-' + c.st[o].l + ') — no way in on record, and the points-for seed sits ' + n1(PM.bench - c.st[o].pf) + ' away.</li>';
+        }).join('') + '</ul>' : NOBURY;
+        scenFill_(host, c, remG);
+      }, 20);
+    };
+    var buildBye = function () {
+      var host = el('scByeBody');
+      if (!host || host.getAttribute('data-built')) return;
+      host.setAttribute('data-built', '1');
+      setTimeout(function () {
+        if (!document.body.contains(host)) return;
+        var E = null;
+        try { E = scenOk_(c, remG, 'bye'); } catch (eE) { E = null; }
+        if (!E) { host.innerHTML = '<div class="note">The bye scenarios did not pass their check against the standings rules, so they are hidden for now.</div>'; return; }
+        var st = scenStatus_(E, 'bye'), cards = '', locked = [];
+        c.owners.slice().sort(byRec).forEach(function (o) {
+          if (st[o] === 'in') locked.push(o);
+          else if (st[o] === 'open') cards += listCard(o, scenSlot_(o, 'bye', 'Gets a first-round bye with'), 'byecard');
+        });
+        host.innerHTML = (locked.length ? '<div class="note" style="margin-bottom:8px"><b>' + locked.join(' and ') + '</b> ' + (locked.length === 1 ? 'has' : 'have') + ' locked up a bye.</div>' : '') +
+          (cards || '<div class="note">Both byes are settled.</div>');
+        scenFill_(host, c, remG);
+      }, 20);
+    };
+    if (!showPaths) sHtml += '<div class="note">Deterministic math only: wins and losses, ties counted against (so clinches can arrive a touch sooner than shown). “Slip-ups” means any combination of losses by the teams ahead in the race.</div>';
     if (byeSec) {
       // two views under this tab: the playoff race and the bye race
       if (!renderCurrent._scq) { renderCurrent._scq = 1; var vq = CURPAGE === 'current' ? routeGetQS('view') : ''; if (vq === 'bye' || vq === 'div') scenView = vq; }
@@ -6696,9 +6799,9 @@ function renderCurrent() {
       el('curScenarios').innerHTML = '<div class="pills subpills" id="scenPills">' +
         '<button class="pill" data-sv="po">Playoffs</button><button class="pill" data-sv="bye">First-round bye</button>' +
         '<button class="pill" data-sv="div">Division titles</button></div>' +
-        (LISTFMT ? '<div class="note" style="margin-bottom:8px"><b>Preview</b> of the scenario-list layout for the Playoffs and First-round bye views. <a href="?tab=scenarios">Back to the current layout</a></div>' : '') +
+        (listOn && fmtQ === 'list' && remG.length > 12 ? '<div class="note" style="margin-bottom:8px"><b>Preview</b> of the scenario-list layout, which takes over by itself once two weeks are left. <a href="?tab=scenarios">Back to this week’s layout</a></div>' : '') +
         '<div id="scenPo">' + sHtml + '</div><div id="scenDiv"></div><div id="scenBye">' + byeSec +
-        (LISTFMT ? '<div class="note">' + SCEN_FOOT + '</div></div>'
+        (listOn ? '<div class="note">' + SCEN_FOOT + '</div></div>'
           : '<div class="note">Covers every way the remaining games can fall. Two teams tied go to head-to-head for the season, a split series goes to points for, ' +
         'and three or more tied go straight to points for. Points for is taken as it stands today.</div></div>');
       var showScen = function () {
@@ -6711,7 +6814,12 @@ function renderCurrent() {
           catch (eDiv) { el('scenDiv').innerHTML = '<div class="note">Division scenarios could not be worked out.</div>'; }
         }
         el('scenPills').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.sv === scenView); });
-        if (scenView !== 'div') scenFill_(el(scenView === 'bye' ? 'scenBye' : 'scenPo'), c, remG);      // exact lists, filled in after the view has drawn
+        if (listOn) {
+          // three weeks out (preview only) the lists are heavy, so they wait until this tab is actually open
+          if (remG.length > 12 && curSub !== 'scenarios') PATHS_PENDING = true;
+          else if (scenView === 'po') buildPo();
+          else if (scenView === 'bye') buildBye();
+        } else if (scenView !== 'div') scenFill_(el(scenView === 'bye' ? 'scenBye' : 'scenPo'), c, remG);      // long-shot lists, filled in after the view has drawn
       };
       el('scenPills').querySelectorAll('button').forEach(function (b) {
         b.onclick = function () {
