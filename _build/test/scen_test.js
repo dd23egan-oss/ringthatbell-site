@@ -17,8 +17,8 @@ const src = fs.readFileSync(master, 'utf8');
 const a = src.indexOf('// <<SCEN-ENGINE'), b = src.indexOf('// SCEN-ENGINE>>');
 if (a < 0 || b < 0) { console.error('scen_test: engine markers not found in ' + master); process.exit(1); }
 const ctx = {}; vm.createContext(ctx);
-vm.runInContext(src.slice(a, b) + '\nthis.X = { rtbScen: rtbScen, rtbScenList: rtbScenList, rtbScenAudit: rtbScenAudit };', ctx);
-const { rtbScen, rtbScenList, rtbScenAudit } = ctx.X;
+vm.runInContext(src.slice(a, b) + '\nthis.X = { rtbScen: rtbScen, rtbScenList: rtbScenList, rtbScenAudit: rtbScenAudit, rtbScenCommon: rtbScenCommon, rtbScenLineHtml: rtbScenLineHtml };', ctx);
+const { rtbScen, rtbScenList, rtbScenAudit, rtbScenCommon, rtbScenLineHtml } = ctx.X;
 const FX = JSON.parse(fs.readFileSync(path.join(__dirname, 'scen_fixture.json'), 'utf8'));
 
 let seed = 20261127;
@@ -59,14 +59,40 @@ function condHolds(c, pf, inp) {
   if (c.pairs) return c.pairs.every(p => P(p[0], p[1]));
   return c.th.S.filter(s => P(c.th.x, s)).length >= c.th.k;
 }
+function hits(E, ln, x, mask) {     // does this line's game-result part cover the finish? (points condition aside)
+  if (ln.type === 'wins') return E.gained[x][mask] >= ln.k;
+  if (((mask ^ ln.val) & ln.fixed) !== 0) return false;
+  return !ln.alts || ln.alts.some(al => ((mask >> al[0]) & 1) === al[1]);
+}
 function check(label, inp, samples, pfPer, listKinds) {     // listKinds: which races also get their lists built and checked
-  const t0 = Date.now(), E = rtbScen(inp), lists = {}; let nLines = 0, bad = 0; const ex = [];
+  const t0 = Date.now(), E = rtbScen(inp), lists = {}, rem = inp.rem; let nLines = 0, bad = 0; const ex = [];
   listKinds = listKinds || E.kinds;
   const fail = msg => { bad++; if (ex.length < 5) ex.push(msg); };
   for (const k of listKinds) { lists[k] = {}; for (const o of inp.owners) { const L = rtbScenList(E, o, k, { maxLines: 100000 }); lists[k][o] = L; nLines += L.lines.length;
     if (!rtbScenAudit(E, o, k, L)) fail('built-in audit rejected a good list: ' + k + ' ' + o);
+    { // results the page states once for the whole list ("needed in every scenario") really are part of every line
+      const CM = rtbScenCommon(E, L, o), xo = inp.owners.indexOf(o);
+      if (CM) { if (!CM.fixed) fail('empty shared part: ' + k + ' ' + o);
+        L.lines.forEach(ln => { if (ln.type === 'cube') { if ((ln.fixed & CM.fixed) !== CM.fixed || ((ln.val ^ CM.val) & CM.fixed)) fail('shared part not in a line: ' + k + ' ' + o); }
+          else if (ln.k !== E.R[xo]) fail('shared part with a partial win-total line: ' + k + ' ' + o); });
+        if (E.total <= 4096) for (let q = 0; q < E.total; q++) if (((q ^ CM.val) & CM.fixed) && L.lines.some(ln => hits(E, ln, xo, q))) { fail('a line applies without the shared part: ' + k + ' ' + o); break; }
+        L.lines.forEach(ln => { const h = rtbScenLineHtml(E, ln, o, v => v.toFixed(1), CM.fixed); if (!h || /Any combination/.test(h)) fail('line empty after the shared part: ' + k + ' ' + o); }); } }
+    { // a "wins at least n" line must not sit next to a single simpler line about his own games that already says more
+      const xo = inp.owners.indexOf(o); let own = 0; rem.forEach((g, i) => { if (g[0] === o || g[1] === o) own |= 1 << i; });
+      const key = l => l.cond ? l.cond.key : '';
+      L.lines.filter(l => l.type === 'wins').forEach(W => L.lines.forEach(C => {
+        if (C === W || C.type !== 'cube' || key(C) !== key(W) || (C.fixed & ~own)) return;
+        const Cown = C.alts ? { ...C, alts: C.alts.filter(al => own & (1 << al[0])) } : C;      // the part of it about his own games
+        if (C.alts && !Cown.alts.length) return;
+        let implied = true;
+        for (let q = 0; q < E.total && implied; q++) if (hits(E, W, xo, q) && !hits(E, Cown, xo, q)) implied = false;
+        if (implied) fail('redundant win-total line: ' + k + ' ' + o);
+      })); }
     if (L.lines.length && E.total <= 4096) {
-      if (rtbScenAudit(E, o, k, { ...L, lines: L.lines.slice(1) })) fail('built-in audit missed a dropped line: ' + k + ' ' + o);
+      // tamper 1: take away every line that covers one finish where he gets there -> the audit has to notice
+      const x0 = inp.owners.indexOf(o), cl0 = E.cls[k][x0]; let m0 = -1;
+      for (let q = 0; q < E.total && m0 < 0; q++) if (cl0[q] >= 1) m0 = q;
+      if (m0 >= 0 && rtbScenAudit(E, o, k, { ...L, lines: L.lines.filter(l => !hits(E, l, x0, m0)) })) fail('built-in audit missed dropped lines: ' + k + ' ' + o);
       const cube = L.lines.find(l => l.type === 'cube' && l.fixed);
       if (cube) { const low = cube.fixed & -cube.fixed;
         if (rtbScenAudit(E, o, k, { ...L, lines: L.lines.map(l => l === cube ? { ...l, fixed: l.fixed & ~low, val: l.val & ~low } : l) })) fail('built-in audit missed a widened line: ' + k + ' ' + o); } } } }

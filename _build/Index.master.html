@@ -252,6 +252,8 @@
   .pathhead { font-size: 15px; margin-bottom: 4px; }
   .pathlines { margin: 0; padding-left: 18px; } .pathlines > li { margin: 5px 0; line-height: 1.45; }
   .pathcard.byecard { border-left-color: #1d5fa8; }
+  .pathlines > li.scli { list-style: none; margin-left: -18px; }
+  .scmust { padding: 7px 10px; margin: 5px 0 7px; background: var(--bg); border-radius: 8px; line-height: 1.5; font-size: 13.5px; }
   .sclist { list-style: none; margin: 4px 0 0; padding: 0; }
   .sclist li { padding: 7px 0; border-top: 1px solid var(--line); line-height: 1.5; font-size: 13.5px; }
   .sclist li:first-child { border-top: none; }
@@ -5713,7 +5715,7 @@ function rtbScenList(E, owner, kind, opts) {
   }
   var lines = [], truncated = false;
   function cover(allowed, need, cond) {
-    var left = 0, bad = [], k;
+    var left = 0, bad = [], k, wl = null, wneed = null;
     for (m = 0; m < total; m++) { if (need[m]) left++; if (!allowed[m]) bad.push(m); }
     if (!left) return;
     // 1) the owner's own win total, when that alone is enough
@@ -5721,7 +5723,10 @@ function rtbScenList(E, owner, kind, opts) {
       var ok = true, hits = 0;
       for (m = 0; m < total; m++) { if (gx[m] < k) continue; if (!allowed[m]) { ok = false; break; } if (need[m]) hits++; }
       if (ok) {
-        if (hits) { lines.push({ type: 'wins', k: k, cond: cond, size: hits }); for (m = 0; m < total; m++) if (gx[m] >= k && need[m]) { need[m] = 0; left--; } }
+        if (hits) {
+          wl = { type: 'wins', k: k, cond: cond, size: hits }; wneed = []; lines.push(wl);
+          for (m = 0; m < total; m++) if (gx[m] >= k && need[m]) { wneed.push(m); need[m] = 0; left--; }
+        }
         break;
       }
     }
@@ -5783,6 +5788,7 @@ function rtbScenList(E, owner, kind, opts) {
       for (var gbit = 0; gbit < N; gbit++) {
         if (!(cb.fixed & (1 << gbit))) continue;
         var restFixed = cb.fixed & ~(1 << gbit), restVal = cb.val & restFixed, grp2 = [[ix, gbit]];
+        if (!restFixed) continue;                                 // single results stay as lines of their own ("A beats B" OR "C beats D")
         for (var jx = 0; jx < cubes.length; jx++) {
           if (jx === ix || used[jx]) continue;
           var ob = cubes[jx];
@@ -5803,6 +5809,17 @@ function rtbScenList(E, owner, kind, opts) {
       } else { used[ix] = true; merged.push({ type: 'cube', fixed: cb.fixed, val: cb.val, alts: null, cond: cond, size: cb.n }); }
     });
     merged.forEach(function (l) { lines.push(l); });
+    // 5) a win-total line adds nothing when simpler lines about the owner's own games already cover all of it
+    //    ("wins out" next to "beats Murph"), so it is left out
+    if (wl && !truncated) {
+      var ownMask = 0;
+      mine.forEach(function (g2) { ownMask |= 1 << g2; });
+      var ownCovers = function (l, mm) {        // covered using only the owner's own results in this line?
+        if ((l.fixed & ~ownMask) || ((mm ^ l.val) & l.fixed)) return false;
+        return !l.alts || l.alts.some(function (al2) { return (ownMask & (1 << al2[0])) && ((mm >> al2[0]) & 1) === al2[1]; });
+      };
+      if (wneed.every(function (mm) { return merged.some(function (l) { return ownCovers(l, mm); }); })) lines.splice(lines.indexOf(wl), 1);
+    }
   }
   // unconditional scenarios
   var allowed = new Uint8Array(total), need = new Uint8Array(total);
@@ -5845,14 +5862,14 @@ function rtbScenList(E, owner, kind, opts) {
 
 // Re-tests a finished list against the engine's per-outcome answers. true = every line is right in every outcome
 // it covers AND every outcome/points order where the owner gets there is covered by some line.
-function rtbScenAudit(E, owner, kind, L) {
+function rtbScenAudit(E, owner, kind, L, step) {
   var x = E.owners.indexOf(owner), cl = E.cls[kind][x], total = E.total, lines = L.lines, m, q, allowCache = {};
   function allows(id, cond) {
     var k = id + '|' + cond.key;
     if (allowCache[k] == null) allowCache[k] = rtbCondAllows(E.classes[id], cond) ? 1 : 0;
     return allowCache[k];
   }
-  for (m = 0; m < total; m++) {
+  for (m = 0; m < total; m += (step || 1)) {
     var id = cl[m], unc = false, keysHit = null;
     for (q = 0; q < lines.length; q++) {
       var ln = lines[q];
@@ -5879,7 +5896,9 @@ function rtbScenCondHtml(E, c, fmt) {
   if (c.th) {
     var have = c.th.S.filter(function (s) { return pf[c.th.x] > pf[s]; }).length, words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'];
     txt = O[c.th.x] + ' finishes ahead of at least ' + (words[c.th.k] || c.th.k) + ' of ' + list(c.th.S.map(function (s) { return O[s]; })) + ' on points for';
-    now = [have >= c.th.k, 'ahead of ' + (words[have] || have) + ' today'];
+    var nS = c.th.S.length;
+    now = [have >= c.th.k, have === 0 ? (nS === 2 ? 'ahead of neither today' : 'ahead of none of them today')
+      : have === nS ? (nS === 2 ? 'ahead of both today' : 'ahead of all of them today') : 'ahead of ' + (words[have] || have) + ' today'];
   } else {
     var by = {}, ord = [], okAll = true;
     c.pairs.forEach(function (p) { if (!by[p[0]]) { by[p[0]] = []; ord.push(p[0]); } by[p[0]].push(p[1]); if (!(pf[p[0]] > pf[p[1]])) okAll = false; });
@@ -5889,8 +5908,35 @@ function rtbScenCondHtml(E, c, fmt) {
   }
   return txt + ' <span class="scnow ' + (now[0] ? 'ok' : 'no') + '">(' + now[1] + ')</span>';
 }
-function rtbScenLineHtml(E, ln, owner, fmt) {
+// Results that appear in every line of a list (say "Devin beats Robbie, Gray and John"), so the page can state them once
+// instead of repeating them on every line. Returns { fixed, val } or null. Display only: each line = these results AND the rest.
+function rtbScenCommon(E, L, owner) {
+  var x = E.owners.indexOf(owner), lines = L.lines, own = 0, ownVal = 0, i, fixed = 0, val = null;
+  if (lines.length < 3) return null;
+  for (i = 0; i < E.N; i++) { if (E.ga[i] === x) own |= 1 << i; else if (E.gb[i] === x) { own |= 1 << i; ownVal |= 1 << i; } }
+  for (i = 0; i < lines.length; i++) {
+    var ln = lines[i], f, v;
+    if (ln.type === 'wins') { if (ln.k < E.R[x]) return null; f = own; v = ownVal; }      // "wins out" pins every one of his games
+    else { f = ln.fixed; v = ln.val & ln.fixed; }
+    if (val === null) { fixed = f; val = v; }
+    else { fixed &= f & ~(val ^ v); val &= fixed; }
+    if (!fixed) return null;
+  }
+  for (i = 0; i < lines.length; i++) {        // every line must still say something once the shared part is taken out
+    var l2 = lines[i];
+    if (!((l2.type === 'wins' ? own : l2.fixed) & ~fixed) && !l2.alts && !l2.cond) return null;
+  }
+  return { fixed: fixed, val: val };
+}
+function rtbScenLineHtml(E, ln, owner, fmt, skip) {
   var O = E.owners, x = O.indexOf(owner), parts = [], multi = false, i;
+  if (ln.type === 'wins') {
+    if (ln.k > 0 && ln.k === E.R[x]) {        // winning out is spelled out as the opponents he has to beat
+      var sf = 0, sv = 0;
+      for (i = 0; i < E.N; i++) { if (E.ga[i] === x) sf |= 1 << i; else if (E.gb[i] === x) { sf |= 1 << i; sv |= 1 << i; } }
+      ln = { type: 'cube', fixed: sf & ~(skip || 0), val: sv, alts: null, cond: ln.cond };
+    }
+  } else if (skip) ln = { type: 'cube', fixed: ln.fixed & ~skip, val: ln.val, alts: ln.alts, cond: ln.cond };   // leave out results already stated once for the whole list
   for (i = 1; i < E.gwk.length; i++) if (E.gwk[i] !== E.gwk[0]) multi = true;
   function wk(g) { return multi ? ' <span class="scwk">(Wk ' + E.gwk[g] + ')</span>' : ''; }
   function list(arr, word) { return arr.length > 1 ? arr.slice(0, -1).join(', ') + ' ' + (word || 'and') + ' ' + arr[arr.length - 1] : arr[0]; }
@@ -5963,17 +6009,68 @@ function scenCrossCheck_(c, E, remG, kind) {
   CUR.games.rows = saved;
   return ok && !E.inexact;
 }
-function scenCardHtml_(E, c, L, lead) {
-  var o = L.owner, x = E.owners.indexOf(o), LIM = 8;
-  var head = '<div class="pathhead"><b>' + o + '</b> <span class="schrec">' + c.st[o].w + '-' + c.st[o].l + ' · ' + E.R[x] + ' left</span></div>';
-  if (!L.ok) return '<div class="pathcard sccard">' + head + '<div class="note">These scenarios failed their own check, so they are not shown.</div></div>';
+function scenListHtml_(E, L, lead) {
+  var o = L.owner, LIM = 8;
+  if (!L.ok) return '<div class="note">These scenarios failed their own check, so they are not shown.</div>';
+  var cm = rtbScenCommon(E, L, o), skip = cm ? cm.fixed : 0;      // results every line shares are stated once, up top
   var items = L.lines.map(function (ln, i) {
-    return '<li>' + (i ? '<span class="scor">OR</span> ' : '') + rtbScenLineHtml(E, ln, o, n1) + '</li>';
+    return '<li>' + (i ? '<span class="scor">OR</span> ' : '') + rtbScenLineHtml(E, ln, o, n1, skip) + '</li>';
   });
   var body = '<ul class="sclist">' + items.slice(0, LIM).join('') + '</ul>';
   if (items.length > LIM) body += '<details class="scmore"><summary>Show ' + (items.length - LIM) + ' more scenario' + (items.length - LIM === 1 ? '' : 's') + '</summary><ul class="sclist">' + items.slice(LIM).join('') + '</ul></details>';
-  return '<div class="pathcard sccard">' + head + '<div class="sclead">' + lead + '</div>' + body + '</div>';
+  if (L.truncated) body += '<div class="schsub">The list was cut off here; there are more combinations than fit.</div>';
+  var must = cm ? '<div class="scmust">' + rtbScenLineHtml(E, { type: 'cube', fixed: cm.fixed, val: cm.val, alts: null, cond: null }, o, n1) +
+    ' <span class="scwk">· needed in every scenario</span></div><div class="sclead">and one of</div>' : '';
+  return '<div class="sclead">' + lead + '</div>' + must + body;
 }
+function scenCardHtml_(E, c, L, lead) {
+  var o = L.owner, x = E.owners.indexOf(o);
+  return '<div class="pathcard sccard"><div class="pathhead"><b>' + o + '</b> <span class="schrec">' + c.st[o].w + '-' + c.st[o].l + ' · ' + E.R[x] + ' left</span></div>' +
+    scenListHtml_(E, L, lead) + '</div>';
+}
+// One owner's list for one race, worked out once per data load. null = the engine failed its check against the standings code.
+function scenListFor_(c, remG, kind, o) {
+  var E = scenEngine_(c, remG, [kind]), ck = 'L|' + kind + '|' + c.played + '|' + remG.length;
+  if (SCENC[ck + '|ok'] == null) SCENC[ck + '|ok'] = scenCrossCheck_(c, E, remG, kind);
+  if (!SCENC[ck + '|ok']) return null;
+  if (!SCENC[ck + '|' + o]) {
+    var L = rtbScenList(E, o, kind, { maxLines: 700 });
+    // the self-check re-tests every line against every finish; for the very long three-weeks-out lists it uses an even spread of finishes
+    L.ok = rtbScenAudit(E, o, kind, L, Math.max(1, Math.ceil(E.total * L.lines.length / 4e6)));
+    SCENC[ck + '|' + o] = L;
+  }
+  return { E: E, L: SCENC[ck + '|' + o] };
+}
+// A placeholder that scenFill_ turns into the owner's list. Lists are filled one at a time after the page has drawn,
+// so a heavy week (three weeks out) never freezes the tab.
+function scenSlot_(o, kind, lead) {
+  return '<div class="scfill" data-o="' + o + '" data-k="' + kind + '" data-lead="' + lead + '"><div class="schsub">Working out every scenario…</div></div>';
+}
+function scenFill_(host, c, remG) {
+  if (!host) return;
+  var slots = [].slice.call(host.querySelectorAll('.scfill:not([data-done])'));
+  slots.forEach(function (sl) { sl.setAttribute('data-done', '1'); });
+  (function next() {
+    var sl = slots.shift();
+    if (!sl) return;
+    setTimeout(function () {
+      if (!document.body.contains(sl)) return;        // the tab was redrawn in the meantime
+      var html, kind = sl.getAttribute('data-k');
+      try {
+        var r = scenListFor_(c, remG, kind, sl.getAttribute('data-o'));
+        if (!r) html = '<div class="note">These scenarios did not pass their check against the standings rules, so they are hidden for now.</div>';
+        else if (r.L.nAlways === r.L.total) html = kind === 'bye' ? '<b>He has a bye.</b> No result can change it.' : '<b>He’s in.</b> No result can change it.';
+        else if (!r.L.lines.length) html = kind === 'bye' ? 'No way to a bye from here.' : 'No way in on record from here.';
+        else html = scenListHtml_(r.E, r.L, sl.getAttribute('data-lead'));
+      } catch (eF) { html = '<div class="note">These scenarios could not be worked out.</div>'; }
+      sl.innerHTML = html;
+      next();
+    }, 15);
+  })();
+}
+var SCEN_FOOT = 'Every line is a complete scenario: if those results happen, he gets there. Together the lines cover every way the remaining games can finish. ' +
+  'Tiebreakers are built in: two teams tied go to head-to-head for the season, a split series goes to points for, ' +
+  'and three or more tied go straight to points for. Where points for decides it, the line says exactly who has to finish ahead of whom, with where that stands today.';
 function scenDivHtml_(c, remG) {
   var E = scenEngine_(c, remG, ['div']);
   if (!scenCrossCheck_(c, E, remG, 'div')) {
@@ -6418,7 +6515,7 @@ function renderCurrent() {
         remG.sort(function (p, q) { return p[2] - q[2]; });
       }
     } catch (eRem) { remG = []; }
-    var paths = null;
+    var paths = null, LISTFMT = CURPAGE === 'current' && routeGetQS('fmt') === 'list';     // ?fmt=list previews the scenario-list layout
     PATHS_PENDING = false;
     try {
       if (remG.length && remG.every(function (g) { return PM.remain[g[0]] > 0 && PM.remain[g[1]] > 0; })) {
@@ -6475,18 +6572,26 @@ function renderCurrent() {
       }
       function pathCard(o, A, lines, cls) {
         return '<div class="pathcard' + (cls ? ' ' + cls : '') + '"><div class="pathhead"><b>' + o + '</b> <span class="schrec">' + c.st[o].w + '-' + c.st[o].l + ' · ' + c.div[o] + ' Div · ' + A.remain + ' left</span></div>' +
-          '<ul class="pathlines">' + lines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>';
+          '<ul class="pathlines">' + lines.map(function (l) { return l && l.raw ? '<li class="scli">' + l.raw + '</li>' : '<li>' + l + '</li>'; }).join('') + '</ul></div>';
       }
       aliveS.forEach(function (x) {
-        var A = paths.analyze(x.o), lines = pathLines(A, { done: 'He’s in.', now: 'In as things stand', got: 'he’s in' });
-        if (!A.alive || x.dead) lines = [magicLine(x)];
+        var A = paths.analyze(x.o), lines, live = A.alive && !x.dead;
+        if (LISTFMT && live) lines = [{ raw: scenSlot_(x.o, 'po', 'Makes the playoffs with') }];
+        else {
+          lines = pathLines(A, { done: 'He’s in.', now: 'In as things stand', got: 'he’s in' });
+          // nothing simple to say (he needs a long chain of results): spell out every combination instead of waving at it
+          if (live && A.kMin == null && !A.levels.some(function (lv) { return lv.sols && lv.sols.length; }))
+            lines = ['Can’t do it on his own wins alone. Every way it can still happen:', { raw: scenSlot_(x.o, 'po', 'Makes the playoffs with') }];
+        }
+        if (!live) lines = [magicLine(x)];
         else if (x.o === sixO) lines.push('<b>6th seed:</b> he holds it right now on points for, so that is his fallback.');
         else if (x.deficit <= 0) lines.push('<b>6th seed:</b> he has more points for than ' + (sixO || 'the current 6 seed') + ', so the points-for spot is his fallback if the record falls short.');
         else lines.push('<b>6th seed:</b> the points-for spot is also open to him. He is ' + n1(x.deficit) + ' points behind ' + (sixO || 'the current 6 seed') + '.');
         pHtml += pathCard(x.o, A, lines);
       });
       sHtml += aliveS.length ? pHtml : '<div class="note">Everyone is either in or out — see above and below.</div>';
-      sHtml += '<div class="note">Covers every way the last ' + remG.length + ' games can fall, with tiebreakers applied: two teams tied go to head-to-head for the season ' +
+      sHtml += LISTFMT ? '<div class="note">' + SCEN_FOOT + ' The 6th spot is separate: it goes to the most points for among the teams left out.</div>'
+        : '<div class="note">Covers every way the last ' + remG.length + ' games can fall, with tiebreakers applied: two teams tied go to head-to-head for the season ' +
         '(including games still to play), a split series goes to points for, and three or more tied go straight to points for. ' +
         'Points for is taken as it stands today; anything marked “needs his points-for edge to hold” could change if the scoring order flips. ' +
         'The 6th spot goes to the most points for among the teams left out.</div>';
@@ -6496,7 +6601,8 @@ function renderCurrent() {
         var B = paths.analyze(o, 'bye');
         if (!B.alive) return;
         if (B.kSol === 0) { bLocked.push(o); return; }
-        bHtml += pathCard(o, B, pathLines(B, { done: 'He has a bye.', now: 'Holds a bye as things stand', got: 'he has a bye', brief: true }), 'byecard');
+        bHtml += pathCard(o, B, LISTFMT ? [{ raw: scenSlot_(o, 'bye', 'Gets a first-round bye with') }]
+          : pathLines(B, { done: 'He has a bye.', now: 'Holds a bye as things stand', got: 'he has a bye', brief: true }), 'byecard');
       });
       byeSec = '<h2 style="font-size:15px">\uD83D\uDECB\uFE0F Paths to a first-round bye \u2014 ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>' +
         (bLocked.length ? '<div class="note" style="margin-bottom:8px"><b>' + bLocked.join(' and ') + '</b> ' + (bLocked.length === 1 ? 'has' : 'have') + ' locked up a bye.</div>' : '') +
@@ -6590,9 +6696,11 @@ function renderCurrent() {
       el('curScenarios').innerHTML = '<div class="pills subpills" id="scenPills">' +
         '<button class="pill" data-sv="po">Playoffs</button><button class="pill" data-sv="bye">First-round bye</button>' +
         '<button class="pill" data-sv="div">Division titles</button></div>' +
+        (LISTFMT ? '<div class="note" style="margin-bottom:8px"><b>Preview</b> of the scenario-list layout for the Playoffs and First-round bye views. <a href="?tab=scenarios">Back to the current layout</a></div>' : '') +
         '<div id="scenPo">' + sHtml + '</div><div id="scenDiv"></div><div id="scenBye">' + byeSec +
-        '<div class="note">Covers every way the remaining games can fall. Two teams tied go to head-to-head for the season, a split series goes to points for, ' +
-        'and three or more tied go straight to points for. Points for is taken as it stands today.</div></div>';
+        (LISTFMT ? '<div class="note">' + SCEN_FOOT + '</div></div>'
+          : '<div class="note">Covers every way the remaining games can fall. Two teams tied go to head-to-head for the season, a split series goes to points for, ' +
+        'and three or more tied go straight to points for. Points for is taken as it stands today.</div></div>');
       var showScen = function () {
         el('scenPo').style.display = scenView === 'po' ? '' : 'none';
         el('scenBye').style.display = scenView === 'bye' ? '' : 'none';
@@ -6603,6 +6711,7 @@ function renderCurrent() {
           catch (eDiv) { el('scenDiv').innerHTML = '<div class="note">Division scenarios could not be worked out.</div>'; }
         }
         el('scenPills').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.sv === scenView); });
+        if (scenView !== 'div') scenFill_(el(scenView === 'bye' ? 'scenBye' : 'scenPo'), c, remG);      // exact lists, filled in after the view has drawn
       };
       el('scenPills').querySelectorAll('button').forEach(function (b) {
         b.onclick = function () {
