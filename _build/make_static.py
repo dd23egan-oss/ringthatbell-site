@@ -30,6 +30,16 @@ SNAPSHOT = os.path.join(HERE, 'Index.master.html')
 MASTER = sys.argv[1] if len(sys.argv) > 1 else (
     '/mnt/user-data/outputs/Index.html' if os.path.exists('/mnt/user-data/outputs/Index.html') else SNAPSHOT)
 
+# The scenario engine is checked against an independent copy of the league rules before anything is built.
+# A failure stops the build, so a broken engine cannot be published.
+if shutil.which('node') and os.path.exists(os.path.join(HERE, 'test', 'scen_test.js')) and '// <<SCEN-ENGINE' in open(MASTER, encoding='utf-8').read():
+    import subprocess
+    _r = subprocess.run(['node', os.path.join(HERE, 'test', 'scen_test.js'), MASTER, 'quick'], capture_output=True, text=True)
+    print((_r.stdout.strip().splitlines() or ['scen_test: no output'])[-1])
+    if _r.returncode != 0:
+        sys.stderr.write(_r.stdout[-3000:] + _r.stderr[-2000:] + '\nBuild stopped: scenario engine checks failed.\n')
+        sys.exit(1)
+
 SITE_URL = 'https://ringthatbellfootball.com'
 SITE_NAME = 'Ring That Bell Fantasy Football'
 OG_IMAGE = SITE_URL + '/og-image.jpg'

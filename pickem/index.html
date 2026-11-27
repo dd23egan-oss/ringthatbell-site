@@ -269,6 +269,15 @@
   .pathhead { font-size: 15px; margin-bottom: 4px; }
   .pathlines { margin: 0; padding-left: 18px; } .pathlines > li { margin: 5px 0; line-height: 1.45; }
   .pathcard.byecard { border-left-color: #1d5fa8; }
+  .sclist { list-style: none; margin: 4px 0 0; padding: 0; }
+  .sclist li { padding: 7px 0; border-top: 1px solid var(--line); line-height: 1.5; font-size: 13.5px; }
+  .sclist li:first-child { border-top: none; }
+  .scor { font-weight: 800; font-size: 11px; color: var(--primary); letter-spacing: .6px; margin-right: 3px; }
+  .scand { font-weight: 800; font-size: 10.5px; color: var(--muted); letter-spacing: .5px; }
+  .scwk { color: var(--muted); font-size: .88em; white-space: nowrap; }
+  .scnow { font-size: .88em; white-space: nowrap; } .scnow.ok { color: #157a38; } .scnow.no { color: #b3261e; }
+  .sclead { font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); font-weight: 800; margin-top: 2px; }
+  .scmore summary { cursor: pointer; font-weight: 700; color: var(--primary); font-size: 13px; padding: 7px 0 2px; }
   .pfdep { font-size: 11.5px; color: #8a6a00; white-space: nowrap; }
   .pathopt { margin: 4px 0 2px; padding-left: 18px; list-style: circle; } .pathopt li { margin: 3px 0; }
   .subgrp { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0 8px; }
@@ -1256,7 +1265,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1127.1625';
+var RTB_BUILD = '1127.1716';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -5195,7 +5204,7 @@ function initCurTabs() {
     b.onclick = function () {
       curSub = b.dataset.sub; showCurSub();
       if (curSub === 'scenarios' && PATHS_PENDING) { try { renderCurrent(); } catch (ePP) { } }
-      if (CURPAGE === 'current') routeSetQS({ tab: curSub === 'standings' ? '' : curSub, view: curSub === 'scenarios' && scenView === 'bye' ? 'bye' : '' });
+      if (CURPAGE === 'current') routeSetQS({ tab: curSub === 'standings' ? '' : curSub, view: curSub === 'scenarios' && scenView !== 'po' ? scenView : '' });
     };
   });
   showCurSub();
@@ -5515,6 +5524,588 @@ function curPaths_(c, rem) {
     byesFor: function (m) { return owners.filter(function (o, i2) { return byeA[i2][m]; }); } };
   PATHCACHE[key] = res;
   return res;
+}
+// <<SCEN-ENGINE
+// Ring That Bell scenario engine. Pure functions with no page access, so they can be tested on their own
+// (see _build/test/scen_test.js, which checks them against an independent copy of the league rules).
+//
+// League rules encoded here (the same ones the standings code uses):
+//   * Ranking inside any group being ranked: record first. Two teams tied -> season head-to-head
+//     (played + still to play); a split or no meeting -> points for. Three or more tied -> points for.
+//   * Playoffs: Premier top two and the Second winner are automatic; the next two by rank among everyone
+//     else are wildcards. (The 6th seed is the best points-for team left out and is not modelled here.)
+//   * Byes: the Premier winner, plus the top-ranked of the other four teams that got in on record.
+//   * Division title: the top-ranked team in each division.
+//
+// Final points for cannot be known in advance, so each outcome is evaluated under EVERY possible points-for
+// order of the teams that could be separated by points (teams finishing on the same record). Per outcome a
+// team is therefore: always in, never in, or "in if ..." with the exact points-for comparisons required.
+function rtbScen(inp, opts) {
+  opts = opts || {};
+  var kinds = opts.kinds || ['po', 'bye', 'div'];
+  var wantPo = kinds.indexOf('po') > -1 || kinds.indexOf('bye') > -1, wantDiv = kinds.indexOf('div') > -1;
+  var owners = inp.owners, NO = owners.length, rem = inp.rem, N = rem.length, total = 1 << N, oi = {};
+  owners.forEach(function (o, i) { oi[o] = i; });
+  var ga = [], gb = [], gwk = [];
+  rem.forEach(function (g) { ga.push(oi[g[0]]); gb.push(oi[g[1]]); gwk.push(g[2]); });
+  var bw = owners.map(function (o) { return inp.wins[o] || 0; });
+  var pfCur = owners.map(function (o) { return inp.pf[o] || 0; });
+  var divOf = owners.map(function (o) { return inp.div[o]; });
+  var R = owners.map(function () { return 0; });
+  ga.forEach(function (a, gi) { R[a]++; R[gb[gi]]++; });
+  var hb = new Int16Array(NO * NO), pairG = [], i, j, gi;
+  for (i = 0; i < NO * NO; i++) pairG.push([]);
+  owners.forEach(function (o, a) {
+    owners.forEach(function (o2, b) { var r = (inp.h2h || {})[o + '|' + o2]; hb[a * NO + b] = r ? r[0] : 0; });
+  });
+  for (gi = 0; gi < N; gi++) { pairG[ga[gi] * NO + gb[gi]].push(gi); pairG[gb[gi] * NO + ga[gi]].push(gi); }
+  var divNames = [], divMem = [], divIdx = [];
+  divOf.forEach(function (d, i2) {
+    var k = divNames.indexOf(d);
+    if (k < 0) { k = divNames.length; divNames.push(d); divMem.push([]); }
+    divMem[k].push(i2); divIdx[i2] = k;
+  });
+  var dPrem = divNames.indexOf('Premier'), dSec = divNames.indexOf('Second');
+
+  // ---- one evaluation of the standings for the current outcome and points order
+  var w = new Int16Array(NO), pfv = new Float64Array(NO), cnt = new Int8Array(64), curMask = 0, pfHit = 0;
+  var buf = new Int8Array(NO), rest = new Int8Array(NO), chosen = new Uint8Array(NO), byeT = new Uint8Array(NO);
+  function h2hWins(a, b) {
+    var v = hb[a * NO + b], lst = pairG[a * NO + b];
+    for (var q = 0; q < lst.length; q++) { var g = lst[q]; if ((((curMask >> g) & 1) ? gb[g] : ga[g]) === a) v++; }
+    return v;
+  }
+  function ahead(a, b) {            // does a rank above b inside the group being ranked (cnt = teams per record)?
+    if (w[a] !== w[b]) return w[a] > w[b];
+    if (cnt[w[a]] === 2) { var x1 = h2hWins(a, b), x2 = h2hWins(b, a); if (x1 !== x2) return x1 > x2; }
+    pfHit |= (1 << w[a]);           // points for had to separate teams on this record
+    return pfv[a] > pfv[b];
+  }
+  function topOf(arr, len, k) {     // moves the best k of arr[0..len) to the front, in order
+    var q, t, m2, tmp;
+    for (q = 0; q < 64; q++) cnt[q] = 0;
+    for (q = 0; q < len; q++) cnt[w[arr[q]]]++;
+    for (q = 0; q < k && q < len; q++) {
+      m2 = q;
+      for (t = q + 1; t < len; t++) if (ahead(arr[t], arr[m2])) m2 = t;
+      tmp = arr[q]; arr[q] = arr[m2]; arr[m2] = tmp;
+    }
+  }
+  function field() {                // playoff field and byes
+    var q, d, len, p1 = -1;
+    for (q = 0; q < NO; q++) { chosen[q] = 0; byeT[q] = 0; }
+    if (dPrem >= 0) {
+      len = divMem[dPrem].length;
+      for (q = 0; q < len; q++) buf[q] = divMem[dPrem][q];
+      topOf(buf, len, 2); chosen[buf[0]] = 1; if (len > 1) chosen[buf[1]] = 1; p1 = buf[0];
+    }
+    if (dSec >= 0) {
+      len = divMem[dSec].length;
+      for (q = 0; q < len; q++) buf[q] = divMem[dSec][q];
+      topOf(buf, len, 1); chosen[buf[0]] = 1;
+    }
+    len = 0;
+    for (q = 0; q < NO; q++) if (!chosen[q]) rest[len++] = q;
+    topOf(rest, len, 2); chosen[rest[0]] = 1; chosen[rest[1]] = 1;
+    if (p1 >= 0) {
+      byeT[p1] = 1; len = 0;
+      for (q = 0; q < NO; q++) if (chosen[q] && q !== p1) rest[len++] = q;
+      topOf(rest, len, 1); byeT[rest[0]] = 1;
+    }
+  }
+  function divTop(d) {              // winner of one division
+    var len = divMem[d].length;
+    for (var q = 0; q < len; q++) buf[q] = divMem[d][q];
+    topOf(buf, len, 1);
+    return buf[0];
+  }
+
+  // ---- permutations of a tied group, generated once per size
+  var PERMS = {};
+  function permsOf(g) {
+    if (PERMS[g]) return PERMS[g];
+    var out = [], a = [], q;
+    for (q = 0; q < g; q++) a.push(q);
+    (function rec(k) {
+      if (k === g) { out.push(a.slice()); return; }
+      for (var t = k; t < g; t++) { var tmp = a[k]; a[k] = a[t]; a[t] = tmp; rec(k + 1); tmp = a[k]; a[k] = a[t]; a[t] = tmp; }
+    })(0);
+    var pos = out.map(function (p) { var ps = []; p.forEach(function (m, r) { ps[m] = r; }); return ps; });
+    return (PERMS[g] = { order: out, pos: pos, n: out.length });
+  }
+
+  // ---- classes: "in if these points-for comparisons hold"
+  var classes = [null, null], classKey = {};       // id 0 = never, 1 = always
+  var diag = { pfMasks: 0, enumGroups: 0, evals: 0, maxGroup: 0, bigGroupSkips: 0, classes: 0 };
+  function makeClass(x, members, inArr, P) {
+    // members: owner indexes; inArr[pi] = 1 when x is in under points order P.order[pi].
+    // Result: a list of minimal sets of "a finishes ahead of b on points" that each guarantee x is in,
+    // which together describe every points order where x is in.
+    var g = members.length, xl = members.indexOf(x), covered = new Uint8Array(P.n), terms = [], seen = {}, pi, q;
+    function famIn(cons, markInto) {
+      for (var p2 = 0; p2 < P.n; p2++) {
+        var ps = P.pos[p2], okp = true;
+        for (var c2 = 0; c2 < cons.length; c2++) if (ps[cons[c2][0]] > ps[cons[c2][1]]) { okp = false; break; }
+        if (!okp) continue;
+        if (markInto) markInto[p2] = 1; else if (!inArr[p2]) return false;
+      }
+      return true;
+    }
+    for (pi = 0; pi < P.n; pi++) {
+      if (!inArr[pi] || covered[pi]) continue;
+      var ps0 = P.pos[pi], cons = [], a, b;
+      for (a = 0; a < g; a++) for (b = 0; b < g; b++) if (a !== b && ps0[a] < ps0[b]) cons.push([a, b]);
+      // drop comparisons that do not involve x first, so what remains reads naturally ("x ahead of ...")
+      cons.sort(function (c1, c2) { return ((c1[0] === xl || c1[1] === xl) ? 1 : 0) - ((c2[0] === xl || c2[1] === xl) ? 1 : 0); });
+      for (q = 0; q < cons.length; ) {
+        var trial = cons.slice(0, q).concat(cons.slice(q + 1));
+        if (famIn(trial, null)) cons = trial; else q++;
+      }
+      famIn(cons, covered);
+      var pairs = cons.map(function (c3) { return [members[c3[0]], members[c3[1]]]; })
+        .sort(function (p1, p2) { return p1[0] - p2[0] || p1[1] - p2[1]; });
+      var key = pairs.map(function (p) { return p[0] + '>' + p[1]; }).join(',');
+      if (!seen[key]) { seen[key] = 1; terms.push({ pairs: pairs, key: key }); }
+    }
+    diag.classes++;
+    // "x ahead of at least k of these teams" replaces the full set of k-team combinations when all are present
+    var pure = {}, conds = [];
+    terms.forEach(function (t) {
+      if (t.pairs.every(function (p) { return p[0] === x; })) (pure[t.pairs.length] = pure[t.pairs.length] || []).push(t);
+      else conds.push({ pairs: t.pairs, th: null, key: t.key });
+    });
+    Object.keys(pure).forEach(function (kk) {
+      var k = Number(kk), list = pure[kk], S = {};
+      list.forEach(function (t) { t.pairs.forEach(function (p) { S[p[1]] = 1; }); });
+      var Sarr = Object.keys(S).map(Number).sort(function (a2, b2) { return a2 - b2; }), nCk = 1, z2;
+      for (z2 = 0; z2 < k; z2++) nCk = nCk * (Sarr.length - z2) / (z2 + 1);
+      if (Sarr.length > k && list.length === Math.round(nCk)) conds.push({ pairs: null, th: { x: x, k: k, S: Sarr }, key: 'T' + k + ':' + x + '>' + Sarr.join('|') });
+      else list.forEach(function (t) { conds.push({ pairs: t.pairs, th: null, key: t.key }); });
+    });
+    return { x: x, members: members.slice(), terms: terms, conds: conds };
+  }
+  function classId(x, members, sc, P) {
+    var key = x + ':' + members.join('.') + ':', acc = 0, nb = 0;
+    for (var pi = 0; pi < P.n; pi++) { acc = (acc << 1) | sc[pi]; if (++nb === 30) { key += acc.toString(36) + '.'; acc = 0; nb = 0; } }
+    key += acc.toString(36);
+    var id = classKey[key];
+    if (id == null) { id = classes.length; classKey[key] = id; classes.push(makeClass(x, members, sc, P)); }
+    return id;
+  }
+
+  // ---- storage
+  var gained = owners.map(function () { return new Uint8Array(total); });
+  var cls = {};
+  ['po', 'bye', 'div'].forEach(function (k) {
+    if (kinds.indexOf(k) > -1) cls[k] = owners.map(function () { return new Uint16Array(total); });
+  });
+  var grp = new Int8Array(NO), MAXG = 8, inexact = 0;
+  var scPo = [], scBye = [], scDiv = [], cPo = new Int32Array(NO), cBye = new Int32Array(NO), cDiv = new Int32Array(NO);
+  for (j = 0; j < NO; j++) { scPo.push(null); scBye.push(null); scDiv.push(null); }
+  var mask, v, g, q, pi, d, P, ord, o, members, z;
+  for (mask = 0; mask < total; mask++) {
+    curMask = mask;
+    for (i = 0; i < NO; i++) { w[i] = bw[i]; pfv[i] = pfCur[i]; }
+    for (gi = 0; gi < N; gi++) { var wi = (mask >> gi) & 1 ? gb[gi] : ga[gi]; w[wi]++; gained[wi][mask]++; }
+
+    if (wantDiv) {
+      for (d = 0; d < divMem.length; d++) {
+        pfHit = 0;
+        var top = divTop(d), tw = w[top];
+        g = 0;
+        for (q = 0; q < divMem[d].length; q++) if (w[divMem[d][q]] === tw) grp[g++] = divMem[d][q];
+        for (q = 0; q < divMem[d].length; q++) cls.div[divMem[d][q]][mask] = divMem[d][q] === top ? 1 : 0;
+        if (g < 2 || !(pfHit & (1 << tw))) continue;      // decided on record or head-to-head
+        P = permsOf(g);
+        for (q = 0; q < g; q++) { cDiv[q] = 0; if (!scDiv[q] || scDiv[q].length < P.n) scDiv[q] = new Uint8Array(P.n); }
+        for (pi = 0; pi < P.n; pi++) {
+          ord = P.order[pi];
+          for (q = 0; q < g; q++) pfv[grp[ord[q]]] = g - q;
+          var t2 = divTop(d); diag.evals++;
+          for (q = 0; q < g; q++) { var isT = grp[q] === t2 ? 1 : 0; scDiv[q][pi] = isT; cDiv[q] += isT; }
+        }
+        for (q = 0; q < g; q++) pfv[grp[q]] = pfCur[grp[q]];
+        members = [];
+        for (z = 0; z < g; z++) members.push(grp[z]);
+        for (q = 0; q < g; q++) {
+          cls.div[grp[q]][mask] = cDiv[q] === 0 ? 0 : cDiv[q] === P.n ? 1 : classId(grp[q], members, scDiv[q], P);
+        }
+      }
+    }
+    if (!wantPo) continue;
+
+    pfHit = 0; field();
+    for (i = 0; i < NO; i++) { if (cls.po) cls.po[i][mask] = chosen[i]; if (cls.bye) cls.bye[i][mask] = byeT[i]; }
+    if (!pfHit) continue;
+    diag.pfMasks++;
+    var hit = pfHit;
+    for (v = 0; v < 31; v++) {
+      if (!(hit & (1 << v))) continue;
+      g = 0;
+      for (i = 0; i < NO; i++) if (w[i] === v) grp[g++] = i;
+      if (g < 2) continue;
+      if (g > diag.maxGroup) diag.maxGroup = g;
+      if (g > MAXG) { diag.bigGroupSkips++; inexact = 1; continue; }
+      diag.enumGroups++;
+      P = permsOf(g);
+      for (q = 0; q < g; q++) {
+        cPo[q] = 0; cBye[q] = 0;
+        if (!scPo[q] || scPo[q].length < P.n) { scPo[q] = new Uint8Array(P.n); scBye[q] = new Uint8Array(P.n); }
+      }
+      for (pi = 0; pi < P.n; pi++) {
+        ord = P.order[pi];
+        for (q = 0; q < g; q++) pfv[grp[ord[q]]] = g - q;
+        field(); diag.evals++;
+        for (q = 0; q < g; q++) {
+          o = grp[q];
+          scPo[q][pi] = chosen[o]; cPo[q] += chosen[o];
+          scBye[q][pi] = byeT[o]; cBye[q] += byeT[o];
+        }
+      }
+      for (q = 0; q < g; q++) pfv[grp[q]] = pfCur[grp[q]];
+      members = [];
+      for (z = 0; z < g; z++) members.push(grp[z]);
+      for (q = 0; q < g; q++) {
+        o = grp[q];
+        if (cls.po) cls.po[o][mask] = cPo[q] === 0 ? 0 : cPo[q] === P.n ? 1 : classId(o, members, scPo[q], P);
+        if (cls.bye) cls.bye[o][mask] = cBye[q] === 0 ? 0 : cBye[q] === P.n ? 1 : classId(o, members, scBye[q], P);
+      }
+    }
+  }
+  return { owners: owners, rem: rem, N: N, total: total, ga: ga, gb: gb, gwk: gwk, R: R, gained: gained, cls: cls,
+    classes: classes, diag: diag, divOf: divOf, pfCur: pfCur, kinds: kinds, inexact: !!inexact };
+}
+
+// Does a points-for condition guarantee the owner is in, for outcomes of class C?
+function rtbCondAllows(C, ck) {
+  function termWithin(has) { return C.terms.some(function (t) { return t.pairs.every(function (p) { return has[p[0] + '>' + p[1]]; }); }); }
+  if (ck.pairs) { var has = {}; ck.pairs.forEach(function (p) { has[p[0] + '>' + p[1]] = 1; }); return termWithin(has); }
+  var arr = ck.th.S, k = ck.th.k, idx = [], ok = true;
+  (function rec(start) {               // every k-team combination must be enough
+    if (!ok) return;
+    if (idx.length === k) { var h2 = {}; idx.forEach(function (q) { h2[ck.th.x + '>' + arr[q]] = 1; }); if (!termWithin(h2)) ok = false; return; }
+    for (var q = start; q < arr.length && ok; q++) { idx.push(q); rec(q + 1); idx.pop(); }
+  })(0);
+  return ok;
+}
+function rtbLineMatches(E, ln, x, m) { // does outcome m fall under this line's game results (ignoring its points condition)?
+  if (ln.type === 'wins') return E.gained[x][m] >= ln.k;
+  if (((m ^ ln.val) & ln.fixed) !== 0) return false;
+  if (!ln.alts) return true;
+  for (var a = 0; a < ln.alts.length; a++) if (((m >> ln.alts[a][0]) & 1) === ln.alts[a][1]) return true;
+  return false;
+}
+
+// Builds the "X wins AND Y loses ..." list for one owner and one race from an engine result.
+// Each line is true in every outcome it describes; together the lines describe every outcome where the owner
+// gets there (unless `truncated` is set because maxLines ran out). Line forms:
+//   { type:'wins', k }                      the owner wins at least k of his remaining games
+//   { type:'cube', fixed, val, alts }       these game results (bit i of val: 0 = first-listed owner wins game i);
+//                                           alts = one extra "either/or" slot: any ONE of these [game, bit] results
+//   cond: null | { pairs:[[a,b],...] }      and a finishes ahead of b on points for
+function rtbScenList(E, owner, kind, opts) {
+  opts = opts || {};
+  var x = E.owners.indexOf(owner), N = E.N, total = E.total, cl = E.cls[kind][x], gx = E.gained[x], Rx = E.R[x];
+  var maxLines = opts.maxLines || 400, m, i, full = total - 1;
+  var nAlways = 0, nCond = 0, nNever = 0, condKeys = {};
+  for (m = 0; m < total; m++) {
+    var id = cl[m];
+    if (id === 0) nNever++; else if (id === 1) nAlways++;
+    else {
+      nCond++;
+      E.classes[id].conds.forEach(function (t) { (condKeys[t.key] = condKeys[t.key] || { key: t.key, pairs: t.pairs, th: t.th, n: 0 }).n++; });
+    }
+  }
+  var lines = [], truncated = false;
+  function cover(allowed, need, cond) {
+    var left = 0, bad = [], k;
+    for (m = 0; m < total; m++) { if (need[m]) left++; if (!allowed[m]) bad.push(m); }
+    if (!left) return;
+    // 1) the owner's own win total, when that alone is enough
+    for (k = 0; k <= Rx; k++) {
+      var ok = true, hits = 0;
+      for (m = 0; m < total; m++) { if (gx[m] < k) continue; if (!allowed[m]) { ok = false; break; } if (need[m]) hits++; }
+      if (ok) {
+        if (hits) { lines.push({ type: 'wins', k: k, cond: cond, size: hits }); for (m = 0; m < total; m++) if (gx[m] >= k && need[m]) { need[m] = 0; left--; } }
+        break;
+      }
+    }
+    if (!left) return;
+    var tg = need.slice();              // what the cubes below are responsible for
+    // 2) cubes: fix some game results, leave the rest free
+    function inside(fixed, val) {       // is the whole cube inside the allowed set?
+      var free = full & ~fixed, d = 0, t = free;
+      while (t) { d += t & 1; t >>>= 1; }
+      if (bad.length < (1 << d)) { for (var b = 0; b < bad.length; b++) if (((bad[b] ^ val) & fixed) === 0) return false; return true; }
+      var sub = 0;
+      do { if (!allowed[(val & fixed) | sub]) return false; sub = (sub - free) & free; } while (sub);
+      return true;
+    }
+    function countNeed(fixed, val) {
+      var free = full & ~fixed, sub = 0, c2 = 0;
+      do { if (need[(val & fixed) | sub]) c2++; sub = (sub - free) & free; } while (sub);
+      return c2;
+    }
+    var mine = [], oth = [];
+    for (i = 0; i < N; i++) (E.ga[i] === x || E.gb[i] === x ? mine : oth).push(i);
+    var orders = [oth.slice().reverse().concat(mine.slice().reverse()), oth.concat(mine), mine.concat(oth), mine.slice().reverse().concat(oth.slice().reverse())];
+    var seeds = [];
+    for (m = 0; m < total; m++) if (need[m]) seeds.push(m);
+    seeds.sort(function (a, b) { return gx[b] - gx[a] || a - b; });      // the owner's best outcomes first
+    var cubes = [];
+    for (var s = 0; s < seeds.length; s++) {
+      var seed = seeds[s];
+      if (!need[seed]) continue;
+      if (cubes.length + lines.length >= maxLines) { truncated = true; break; }
+      var best = null;
+      for (var oi2 = 0; oi2 < orders.length; oi2++) {
+        var fixed = full, ord = orders[oi2];
+        for (i = 0; i < N; i++) { var bit = 1 << ord[i]; if (inside(fixed & ~bit, seed)) fixed &= ~bit; }
+        var cn = countNeed(fixed, seed);
+        if (!best || cn > best.n) best = { fixed: fixed, val: seed & fixed, n: cn };
+      }
+      cubes.push(best);
+      var free = full & ~best.fixed, sub = 0;
+      do { need[best.val | sub] = 0; sub = (sub - free) & free; } while (sub);
+    }
+    // 3) drop cubes made redundant by later ones (every outcome they were listed for is covered elsewhere)
+    var cc = new Uint16Array(total);
+    function each(cb, fn) { var fr = full & ~cb.fixed, sb = 0; do { fn(cb.val | sb); sb = (sb - fr) & fr; } while (sb); }
+    cubes.forEach(function (cb) { each(cb, function (mm) { cc[mm]++; }); });
+    var keep = cubes.map(function () { return true; });
+    cubes.map(function (cb, ix) { return ix; }).sort(function (a, b) { return cubes[a].n - cubes[b].n; }).forEach(function (ix) {
+      var cb = cubes[ix], needed = false;
+      each(cb, function (mm) { if (cc[mm] === 1 && tg[mm]) needed = true; });
+      if (!needed) { keep[ix] = false; each(cb, function (mm) { cc[mm]--; }); }
+    });
+    cubes = cubes.filter(function (cb, ix) { return keep[ix]; });
+    // 4) "either/or": cubes that match except for one result each are merged into one line
+    var used = cubes.map(function () { return false; }), merged = [];
+    function bitsOf(vv) { var c3 = 0; while (vv) { c3 += vv & 1; vv >>>= 1; } return c3; }
+    cubes.forEach(function (cb, ix) {
+      if (used[ix]) return;
+      var bestGrp = null;
+      for (var gbit = 0; gbit < N; gbit++) {
+        if (!(cb.fixed & (1 << gbit))) continue;
+        var restFixed = cb.fixed & ~(1 << gbit), restVal = cb.val & restFixed, grp2 = [[ix, gbit]];
+        for (var jx = 0; jx < cubes.length; jx++) {
+          if (jx === ix || used[jx]) continue;
+          var ob = cubes[jx];
+          if (bitsOf(ob.fixed) !== bitsOf(cb.fixed)) continue;
+          var extra = ob.fixed & ~restFixed;                      // the one result this cube has that the shared part lacks
+          if ((ob.fixed & restFixed) !== restFixed || bitsOf(extra) !== 1 || (ob.val & restFixed) !== restVal) continue;
+          var eb = 31 - Math.clz32(extra);
+          if (eb === gbit) continue;
+          if (grp2.some(function (ge) { return ge[1] === eb; })) continue;
+          grp2.push([jx, eb]);
+        }
+        if (grp2.length > 1 && (!bestGrp || grp2.length > bestGrp.g.length)) bestGrp = { g: grp2, fixed: restFixed, val: restVal };
+      }
+      if (bestGrp) {
+        var alts = bestGrp.g.map(function (ge) { used[ge[0]] = true; return [ge[1], (cubes[ge[0]].val >> ge[1]) & 1]; });
+        merged.push({ type: 'cube', fixed: bestGrp.fixed, val: bestGrp.val, alts: alts, cond: cond,
+          size: bestGrp.g.reduce(function (a2, ge) { return a2 + cubes[ge[0]].n; }, 0) });
+      } else { used[ix] = true; merged.push({ type: 'cube', fixed: cb.fixed, val: cb.val, alts: null, cond: cond, size: cb.n }); }
+    });
+    merged.forEach(function (l) { lines.push(l); });
+  }
+  // unconditional scenarios
+  var allowed = new Uint8Array(total), need = new Uint8Array(total);
+  for (m = 0; m < total; m++) if (cl[m] === 1) { allowed[m] = 1; need[m] = 1; }
+  cover(allowed, need, null);
+  // scenarios that also need points-for comparisons, simplest condition first. An outcome that can be rescued by
+  // several different comparisons is listed under each of them, so every points order that works is described.
+  function condSize(ck) { return ck.th ? ck.th.k + 0.5 : ck.pairs.length; }
+  var keys = Object.keys(condKeys).map(function (k2) { return condKeys[k2]; })
+    .sort(function (a, b) { return condSize(a) - condSize(b) || b.n - a.n; });
+  keys.forEach(function (ck) {
+    var okClass = {}, isTarget = {};
+    for (i = 2; i < E.classes.length; i++) {
+      var C = E.classes[i];
+      if (C.x !== x) continue;
+      okClass[i] = rtbCondAllows(C, ck);
+      isTarget[i] = C.conds.some(function (cd) { return cd.key === ck.key; });
+    }
+    var al = new Uint8Array(total), nd = new Uint8Array(total), any = false;
+    for (m = 0; m < total; m++) {
+      var id2 = cl[m];
+      if (id2 === 1) al[m] = 1;
+      else if (id2 >= 2 && okClass[id2]) { al[m] = 1; if (isTarget[id2]) { nd[m] = 1; any = true; } }
+    }
+    if (any) cover(al, nd, ck);
+  });
+  // how many finishes each line covers, then order: no-conditions first, broadest first
+  lines.forEach(function (ln) {
+    var c2 = 0;
+    for (m = 0; m < total; m++) if (rtbLineMatches(E, ln, x, m)) c2++;
+    ln.cnt = c2;
+  });
+  lines.sort(function (a, b) {
+    var ca = a.cond ? condSize(a.cond) : 0, cb = b.cond ? condSize(b.cond) : 0;
+    return ca - cb || (a.cond && b.cond && a.cond.key !== b.cond.key ? (a.cond.key < b.cond.key ? -1 : 1) : 0) ||
+      (a.type === 'wins' ? 0 : 1) - (b.type === 'wins' ? 0 : 1) || b.cnt - a.cnt;
+  });
+  return { owner: owner, kind: kind, lines: lines, truncated: truncated, nAlways: nAlways, nCond: nCond, nNever: nNever, total: total };
+}
+
+// Re-tests a finished list against the engine's per-outcome answers. true = every line is right in every outcome
+// it covers AND every outcome/points order where the owner gets there is covered by some line.
+function rtbScenAudit(E, owner, kind, L) {
+  var x = E.owners.indexOf(owner), cl = E.cls[kind][x], total = E.total, lines = L.lines, m, q, allowCache = {};
+  function allows(id, cond) {
+    var k = id + '|' + cond.key;
+    if (allowCache[k] == null) allowCache[k] = rtbCondAllows(E.classes[id], cond) ? 1 : 0;
+    return allowCache[k];
+  }
+  for (m = 0; m < total; m++) {
+    var id = cl[m], unc = false, keysHit = null;
+    for (q = 0; q < lines.length; q++) {
+      var ln = lines[q];
+      if (!rtbLineMatches(E, ln, x, m)) continue;
+      if (id === 0) return false;                                   // a line claims an outcome where he can never get there
+      if (!ln.cond) { if (id !== 1) return false; unc = true; }     // an unconditional line on an outcome that needs points
+      else if (id >= 2) { if (!allows(id, ln.cond)) return false; (keysHit = keysHit || {})[ln.cond.key] = 1; }
+    }
+    if (L.truncated) continue;
+    if (id === 1 && !unc) return false;                             // a sure outcome nobody listed
+    if (id >= 2) {
+      var cds = E.classes[id].conds;
+      for (q = 0; q < cds.length; q++) if (!keysHit || !keysHit[cds[q].key]) return false;   // a points route nobody listed
+    }
+  }
+  return true;
+}
+
+// ---- wording
+function rtbScenCondHtml(E, c, fmt) {
+  var O = E.owners, pf = E.pfCur;
+  function list(arr) { return arr.length > 1 ? arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1] : arr[0]; }
+  var txt, now;
+  if (c.th) {
+    var have = c.th.S.filter(function (s) { return pf[c.th.x] > pf[s]; }).length, words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'];
+    txt = O[c.th.x] + ' finishes ahead of at least ' + (words[c.th.k] || c.th.k) + ' of ' + list(c.th.S.map(function (s) { return O[s]; })) + ' on points for';
+    now = [have >= c.th.k, 'ahead of ' + (words[have] || have) + ' today'];
+  } else {
+    var by = {}, ord = [], okAll = true;
+    c.pairs.forEach(function (p) { if (!by[p[0]]) { by[p[0]] = []; ord.push(p[0]); } by[p[0]].push(p[1]); if (!(pf[p[0]] > pf[p[1]])) okAll = false; });
+    txt = ord.map(function (a) { return O[a] + ' finishes ahead of ' + list(by[a].map(function (b) { return O[b]; })); }).join(', and ') + ' on points for';
+    if (c.pairs.length === 1) { var d = pf[c.pairs[0][0]] - pf[c.pairs[0][1]]; now = [d > 0, (d > 0 ? 'ahead by ' : 'behind by ') + fmt(Math.abs(d)) + ' today']; }
+    else now = [okAll, okAll ? 'true today' : 'not true today'];
+  }
+  return txt + ' <span class="scnow ' + (now[0] ? 'ok' : 'no') + '">(' + now[1] + ')</span>';
+}
+function rtbScenLineHtml(E, ln, owner, fmt) {
+  var O = E.owners, x = O.indexOf(owner), parts = [], multi = false, i;
+  for (i = 1; i < E.gwk.length; i++) if (E.gwk[i] !== E.gwk[0]) multi = true;
+  function wk(g) { return multi ? ' <span class="scwk">(Wk ' + E.gwk[g] + ')</span>' : ''; }
+  function list(arr, word) { return arr.length > 1 ? arr.slice(0, -1).join(', ') + ' ' + (word || 'and') + ' ' + arr[arr.length - 1] : arr[0]; }
+  function me(n2) { return n2 === x ? '<b>' + O[n2] + '</b>' : O[n2]; }
+  if (ln.type === 'wins') {
+    if (ln.k > 0) parts.push('<b>' + owner + '</b> ' + (ln.k === E.R[x] ? (ln.k === 1 ? 'wins his last game' : 'wins out') : 'wins at least ' + ln.k + ' of his last ' + E.R[x]));
+  } else {
+    var myW = [], myL = [], byW = {}, order = [];
+    for (i = 0; i < E.N; i++) {
+      if (!(ln.fixed & (1 << i))) continue;
+      var bit = (ln.val >> i) & 1, w = bit ? E.gb[i] : E.ga[i], l = bit ? E.ga[i] : E.gb[i];
+      if (w === x) myW.push(O[l] + wk(i)); else if (l === x) myL.push(O[w] + wk(i));
+      else { if (!byW[w]) { byW[w] = []; order.push(w); } byW[w].push(O[l] + wk(i)); }
+    }
+    if (myW.length) parts.push('<b>' + owner + '</b> beats ' + list(myW));
+    if (myL.length) parts.push('<b>' + owner + '</b> loses to ' + list(myL));
+    order.forEach(function (w2) { parts.push(O[w2] + ' beats ' + list(byW[w2])); });
+    if (ln.alts) {
+      var al = ln.alts.map(function (a) { return { g: a[0], w: a[1] ? E.gb[a[0]] : E.ga[a[0]], l: a[1] ? E.ga[a[0]] : E.gb[a[0]] }; });
+      var sameW = al.every(function (a) { return a.w === al[0].w; }), sameL = al.every(function (a) { return a.l === al[0].l; });
+      if (sameW) parts.push(me(al[0].w) + ' beats either ' + list(al.map(function (a) { return O[a.l] + wk(a.g); }), 'or'));
+      else if (sameL) parts.push(me(al[0].l) + ' loses to either ' + list(al.map(function (a) { return O[a.w] + wk(a.g); }), 'or'));
+      else parts.push('either ' + list(al.map(function (a) { return me(a.w) + ' beats ' + me(a.l) + wk(a.g); }), 'or'));
+    }
+  }
+  if (ln.cond) parts.push(rtbScenCondHtml(E, ln.cond, fmt));
+  if (!parts.length) return 'Any combination of results';
+  return parts.join(' <span class="scand">AND</span> ');
+}
+// SCEN-ENGINE>>
+
+// ---------- scenario lists on the page (uses the engine above)
+var SCENC = { src: null };
+function scenEngine_(c, remG, kinds) {
+  if (SCENC.src !== CUR) SCENC = { src: CUR };
+  var key = kinds.join('+') + '|' + c.played + '|' + remG.length;
+  if (!SCENC[key]) {
+    var wins = {}, pf = {};
+    c.owners.forEach(function (o) { wins[o] = c.st[o].w; pf[o] = c.st[o].pf; });
+    SCENC[key] = rtbScen({ owners: c.owners.slice(), div: c.div, wins: wins, pf: pf, h2h: c.h2h || {}, rem: remG }, { kinds: kinds });
+  }
+  return SCENC[key];
+}
+// The engine carries its own copy of the seeding rules. Before anything is shown, a sample of complete finishes is
+// also run through the standings code; if the two ever disagree (say the rules change in one place only),
+// the scenarios are withheld rather than shown wrong.
+function scenCrossCheck_(c, E, remG, kind) {
+  var gi = ix(CUR.games), saved = CUR.games.rows, ok = true, t;
+  var baseRows = saved.filter(function (r) { return Number(r[gi.Week]) <= c.played; });
+  try {
+    for (t = 0; t < 40 && ok; t++) {
+      var m = Math.floor(Math.random() * E.total);
+      CUR.games.rows = baseRows.concat(remG.map(function (g, i2) {
+        var row = [], aw = !((m >> i2) & 1);
+        row[gi.Week] = g[2]; row[gi.Owner1] = g[0]; row[gi.Score1] = aw ? 0.000002 : 0.000001;
+        row[gi.Owner2] = g[1]; row[gi.Score2] = aw ? 0.000001 : 0.000002;
+        return row;
+      }));
+      var f = curCompute(null);
+      for (var x = 0; x < E.owners.length && ok; x++) {
+        var o = E.owners[x], id = E.cls[kind][x][m], pred;
+        if (id < 2) pred = id === 1;
+        else pred = E.classes[id].terms.some(function (tm) { return tm.pairs.every(function (p) { return E.pfCur[p[0]] > E.pfCur[p[1]]; }); });
+        var truth = kind === 'div' ? (f.divRanks[f.div[o]] || [])[0] === o
+          : kind === 'bye' ? (f.seeds[o] === 1 || f.seeds[o] === 2) : f.qualified.indexOf(o) > -1;
+        if (pred !== truth) ok = false;
+      }
+    }
+  } catch (e) { ok = false; }
+  CUR.games.rows = saved;
+  return ok && !E.inexact;
+}
+function scenCardHtml_(E, c, L, lead) {
+  var o = L.owner, x = E.owners.indexOf(o), LIM = 8;
+  var head = '<div class="pathhead"><b>' + o + '</b> <span class="schrec">' + c.st[o].w + '-' + c.st[o].l + ' · ' + E.R[x] + ' left</span></div>';
+  if (!L.ok) return '<div class="pathcard sccard">' + head + '<div class="note">These scenarios failed their own check, so they are not shown.</div></div>';
+  var items = L.lines.map(function (ln, i) {
+    return '<li>' + (i ? '<span class="scor">OR</span> ' : '') + rtbScenLineHtml(E, ln, o, n1) + '</li>';
+  });
+  var body = '<ul class="sclist">' + items.slice(0, LIM).join('') + '</ul>';
+  if (items.length > LIM) body += '<details class="scmore"><summary>Show ' + (items.length - LIM) + ' more scenario' + (items.length - LIM === 1 ? '' : 's') + '</summary><ul class="sclist">' + items.slice(LIM).join('') + '</ul></details>';
+  return '<div class="pathcard sccard">' + head + '<div class="sclead">' + lead + '</div>' + body + '</div>';
+}
+function scenDivHtml_(c, remG) {
+  var E = scenEngine_(c, remG, ['div']);
+  if (!scenCrossCheck_(c, E, remG, 'div')) {
+    return '<div class="note">The division scenarios did not pass their check against the standings rules, so they are hidden for now.</div>';
+  }
+  var wks = {}; remG.forEach(function (g) { wks[g[2]] = 1; });
+  var nW = Object.keys(wks).length, ORDER = ['Premier', 'Second', 'Third'], divs = [];
+  c.owners.forEach(function (o) { if (divs.indexOf(c.div[o]) < 0) divs.push(c.div[o]); });
+  divs.sort(function (a, b) { return (ORDER.indexOf(a) < 0 ? 9 : ORDER.indexOf(a)) - (ORDER.indexOf(b) < 0 ? 9 : ORDER.indexOf(b)); });
+  var html = '';
+  divs.forEach(function (d) {
+    var mem = c.owners.filter(function (o) { return c.div[o] === d; })
+      .sort(function (a, b) { return c.st[b].w - c.st[a].w || c.st[b].pf - c.st[a].pf; });
+    var lists = mem.map(function (o) { var L = rtbScenList(E, o, 'div', { maxLines: 300 }); L.ok = rtbScenAudit(E, o, 'div', L); return L; });
+    html += '<h2 style="font-size:15px">' + d + ' division title — ' + nW + ' week' + (nW === 1 ? '' : 's') + ' left</h2>';
+    var champ = lists.filter(function (L) { return L.nAlways === L.total; })[0];
+    if (champ) { html += '<div class="note"><b>' + champ.owner + '</b> has clinched the ' + d + ' division.</div>'; return; }
+    var out = [];
+    lists.forEach(function (L) {
+      if (!L.lines.length) { out.push(L.owner); return; }
+      html += scenCardHtml_(E, c, L, 'Wins the ' + d + ' with');
+    });
+    if (out.length) html += '<div class="note">Eliminated from the ' + d + ' title: <b>' + out.join(', ') + '</b>.</div>';
+  });
+  return html + '<div class="note">Every line is a complete scenario: if those results happen, he wins the division. Together the lines cover every way the remaining ' +
+    remG.length + ' games can finish. Tiebreakers are built in: two teams tied go to head-to-head for the season, a split series goes to points for, ' +
+    'and three or more tied go straight to points for. Where points for decides it, the line says exactly who has to finish ahead of whom, with where that stands today.</div>';
 }
 function curScenarios_(c, PM, games) {
   var owners = c.owners, n = games.length, total = 1 << n;
@@ -6099,21 +6690,29 @@ function renderCurrent() {
     if (!paths) sHtml += '<div class="note">Deterministic math only: wins and losses, ties counted against (so clinches can arrive a touch sooner than shown). “Slip-ups” means any combination of losses by the teams ahead in the race.</div>';
     if (byeSec) {
       // two views under this tab: the playoff race and the bye race
-      if (!renderCurrent._scq) { renderCurrent._scq = 1; if (CURPAGE === 'current' && routeGetQS('view') === 'bye') scenView = 'bye'; }
+      if (!renderCurrent._scq) { renderCurrent._scq = 1; var vq = CURPAGE === 'current' ? routeGetQS('view') : ''; if (vq === 'bye' || vq === 'div') scenView = vq; }
+      var divBuilt = false;
       el('curScenarios').innerHTML = '<div class="pills subpills" id="scenPills">' +
-        '<button class="pill" data-sv="po">Playoffs</button><button class="pill" data-sv="bye">First-round bye</button></div>' +
-        '<div id="scenPo">' + sHtml + '</div><div id="scenBye">' + byeSec +
+        '<button class="pill" data-sv="po">Playoffs</button><button class="pill" data-sv="bye">First-round bye</button>' +
+        '<button class="pill" data-sv="div">Division titles</button></div>' +
+        '<div id="scenPo">' + sHtml + '</div><div id="scenDiv"></div><div id="scenBye">' + byeSec +
         '<div class="note">Covers every way the remaining games can fall. Two teams tied go to head-to-head for the season, a split series goes to points for, ' +
         'and three or more tied go straight to points for. Points for is taken as it stands today.</div></div>';
       var showScen = function () {
         el('scenPo').style.display = scenView === 'po' ? '' : 'none';
         el('scenBye').style.display = scenView === 'bye' ? '' : 'none';
+        el('scenDiv').style.display = scenView === 'div' ? '' : 'none';
+        if (scenView === 'div' && !divBuilt) {           // worked out the first time it is opened
+          divBuilt = true;
+          try { el('scenDiv').innerHTML = scenDivHtml_(c, remG); }
+          catch (eDiv) { el('scenDiv').innerHTML = '<div class="note">Division scenarios could not be worked out.</div>'; }
+        }
         el('scenPills').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.sv === scenView); });
       };
       el('scenPills').querySelectorAll('button').forEach(function (b) {
         b.onclick = function () {
           scenView = b.dataset.sv; showScen();
-          if (CURPAGE === 'current') routeSetQS({ tab: 'scenarios', view: scenView === 'bye' ? 'bye' : '' });
+          if (CURPAGE === 'current') routeSetQS({ tab: 'scenarios', view: scenView === 'po' ? '' : scenView });
         };
       });
       showScen();
