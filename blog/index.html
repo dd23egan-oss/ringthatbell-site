@@ -1256,7 +1256,7 @@ try { var _cc = localStorage.getItem('rtb_cfg_v1'); if (_cc) CONFIG = JSON.parse
 // ---------- static-site adapter ----------
 // The pages are served from GitHub Pages; the data still comes live from the
 // Google Sheet through the league's Apps Script JSON API.
-var RTB_BUILD = '1127.1548';
+var RTB_BUILD = '1127.1625';
 window.RTB_BUILD = RTB_BUILD;
 var API_URL = 'https://script.google.com/macros/s/AKfycbzkXxO6P94GnRy9l3Uu9982gwv2D_BP1JF31diQ2KLCoAc-cr7jSWFenzf7KrXeHgevBQ/exec';
 var google = { script: {} };
@@ -5949,7 +5949,7 @@ function renderCurrent() {
       var pHtml = '';
       // one set of wording for both races; T = { got: 'he’s in', none: '...' }
       function pathLines(A, T) {
-        var lines = [];
+        var lines = [], hiddenWays = false;
         var PFNOTE = ' <span class="pfdep">• needs his points-for edge to hold</span>';
         function need(k) { return k === A.remain ? 'Win out (' + wins(k) + ')' : 'Win ' + k + ' of ' + A.remain; }
         if (A.kSol === 0) lines.push('<b>' + T.done + '</b> No result can change it.');
@@ -5961,7 +5961,7 @@ function renderCurrent() {
         else if (A.alive) lines.push('Can’t do it on his own wins alone.');
         A.levels.forEach(function (lv) {
           var lead = lv.k === 0 ? 'With <b>no more wins</b>' : lv.k === A.remain ? 'By <b>winning out</b>' : 'With <b>' + wins(lv.k) + '</b>';
-          if (T.brief && (lv.tie || !lv.sols.length)) return;     // bye cards skip the dead-end rows
+          if (T.brief && (lv.tie || !lv.sols.length)) { if (!lv.tie) hiddenWays = true; return; }     // bye cards fold the long-shot rows into one line
           if (lv.tie) { lines.push(lead + ', he would have to make up ground in points for to win a tiebreaker.'); return; }
           if (!lv.sols.length) { lines.push(lead + ', he needs several other results to fall just right.'); return; }
           // a win over one particular opponent that settles it by itself gets its own plain sentence
@@ -5984,6 +5984,7 @@ function renderCurrent() {
               : soTxt(show[0]) + '.') +
             (lv.sols.length > show.length ? '<div class="schsub">plus ' + (lv.sols.length - show.length) + ' longer-shot combination' + (lv.sols.length - show.length === 1 ? '' : 's') + '</div>' : ''));
         });
+        if (hiddenWays) lines.push('Fewer wins can still get there, but only if three or more other results all go his way.');
         return lines;
       }
       function pathCard(o, A, lines, cls) {
